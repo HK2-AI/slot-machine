@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { SPARKLE_TEXTURE } from './Background';
 
 const RADIUS = 60;
 
@@ -7,6 +8,7 @@ export class SpinButton extends Phaser.GameObjects.Container {
   private readonly label: Phaser.GameObjects.Text;
   private readonly bodyGroup: Phaser.GameObjects.Container;
   private glowTween?: Phaser.Tweens.Tween;
+  private breathTween?: Phaser.Tweens.Tween;
   private disabled = false;
   private readonly onClick: () => void;
 
@@ -22,18 +24,38 @@ export class SpinButton extends Phaser.GameObjects.Container {
     this.glow.setBlendMode(Phaser.BlendModes.ADD);
     this.add(this.glow);
 
-    // Button body (radial-gradient via stacked circles).
+    // Multi-layer 3D body.
     this.bodyGroup = scene.add.container(0, 0);
     const bodyG = scene.add.graphics();
-    bodyG.fillStyle(0x7a5b0a, 1);
+    // Outer ring: dark gold base.
+    bodyG.fillStyle(0x5a3f06, 1);
     bodyG.fillCircle(0, 0, RADIUS);
+    // Middle ring: bright gold gradient (approximated with stacked circles).
     bodyG.fillStyle(0xb8860b, 1);
     bodyG.fillCircle(0, 0, RADIUS - 4);
+    bodyG.fillStyle(0xd8a93a, 1);
+    bodyG.fillCircle(0, 0, RADIUS - 8);
+    // Inner disc: bright gold radial gradient.
     bodyG.fillStyle(0xe6c45e, 1);
     bodyG.fillCircle(0, 0, RADIUS - 16);
+    bodyG.fillStyle(0xf2d574, 1);
+    bodyG.fillCircle(-RADIUS * 0.1, -RADIUS * 0.1, RADIUS - 22);
     bodyG.fillStyle(0xfff4b3, 1);
-    bodyG.fillCircle(-RADIUS * 0.18, -RADIUS * 0.18, RADIUS - 28);
+    bodyG.fillCircle(-RADIUS * 0.18, -RADIUS * 0.18, RADIUS - 30);
     this.bodyGroup.add(bodyG);
+
+    // Bottom shadow ellipse — dark on bottom 30%.
+    const bottomShadow = scene.add.graphics();
+    bottomShadow.fillStyle(0x000000, 0.3);
+    bottomShadow.fillEllipse(0, RADIUS * 0.45, RADIUS * 1.45, RADIUS * 0.45);
+    this.bodyGroup.add(bottomShadow);
+
+    // Top highlight ellipse — bright on top 40%.
+    const topHighlight = scene.add.graphics();
+    topHighlight.fillStyle(0xffffff, 0.55);
+    topHighlight.fillEllipse(0, -RADIUS * 0.4, RADIUS * 1.4, RADIUS * 0.6);
+    topHighlight.setBlendMode(Phaser.BlendModes.ADD);
+    this.bodyGroup.add(topHighlight);
 
     // Ring strokes for crisper border.
     const ring = scene.add.graphics();
@@ -43,13 +65,13 @@ export class SpinButton extends Phaser.GameObjects.Container {
     ring.strokeCircle(0, 0, RADIUS - 7);
     this.bodyGroup.add(ring);
 
-    // Top highlight arc.
-    const hi = scene.add.graphics();
-    hi.lineStyle(3, 0xffffff, 0.5);
-    hi.beginPath();
-    hi.arc(0, 0, RADIUS - 12, Phaser.Math.DegToRad(200), Phaser.Math.DegToRad(340));
-    hi.strokePath();
-    this.bodyGroup.add(hi);
+    // Lower rim arc (subtle).
+    const rim = scene.add.graphics();
+    rim.lineStyle(3, 0xffffff, 0.35);
+    rim.beginPath();
+    rim.arc(0, 0, RADIUS - 12, Phaser.Math.DegToRad(200), Phaser.Math.DegToRad(340));
+    rim.strokePath();
+    this.bodyGroup.add(rim);
 
     this.add(this.bodyGroup);
 
@@ -79,8 +101,8 @@ export class SpinButton extends Phaser.GameObjects.Container {
       if (this.disabled) return;
       this.scene.tweens.add({
         targets: this.bodyGroup,
-        scaleX: 1.05,
-        scaleY: 1.05,
+        scaleX: 1.06,
+        scaleY: 1.06,
         duration: 120,
         ease: 'Sine.Out',
       });
@@ -100,26 +122,28 @@ export class SpinButton extends Phaser.GameObjects.Container {
       if (this.disabled) return;
       this.scene.tweens.add({
         targets: this.bodyGroup,
-        scaleX: 0.92,
-        scaleY: 0.92,
+        scaleX: 0.9,
+        scaleY: 0.9,
         duration: 80,
         ease: 'Sine.Out',
       });
       this.flash();
+      this.emitPressSparkles();
       this.onClick();
     });
     this.on('pointerup', () => {
       if (this.disabled) return;
       this.scene.tweens.add({
         targets: this.bodyGroup,
-        scaleX: 1.05,
-        scaleY: 1.05,
+        scaleX: 1.06,
+        scaleY: 1.06,
         duration: 120,
         ease: 'Sine.Out',
       });
     });
 
     this.startGlowTween();
+    this.startBreath();
     scene.add.existing(this as unknown as Phaser.GameObjects.GameObject);
   }
 
@@ -138,19 +162,51 @@ export class SpinButton extends Phaser.GameObjects.Container {
     });
   }
 
+  private startBreath(): void {
+    this.breathTween?.stop();
+    this.breathTween = this.scene.tweens.add({
+      targets: this.bodyGroup,
+      scaleX: 1.03,
+      scaleY: 1.03,
+      duration: 1600,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.InOut',
+    });
+  }
+
   private flash(): void {
     const f = this.scene.add.graphics();
-    f.fillStyle(0xffffff, 0.6);
+    f.fillStyle(0xffffff, 0.7);
     f.fillCircle(0, 0, RADIUS);
     f.setBlendMode(Phaser.BlendModes.ADD);
     this.add(f);
     this.scene.tweens.add({
       targets: f,
       alpha: 0,
-      duration: 220,
+      duration: 240,
       ease: 'Sine.Out',
       onComplete: () => f.destroy(),
     });
+  }
+
+  private emitPressSparkles(): void {
+    if (!this.scene.textures.exists(SPARKLE_TEXTURE)) return;
+    const worldX = this.x;
+    const worldY = this.y;
+    const emitter = this.scene.add.particles(worldX, worldY, SPARKLE_TEXTURE, {
+      speed: { min: 120, max: 200 },
+      angle: { min: 0, max: 360 },
+      lifespan: 480,
+      scale: { start: 0.7, end: 0 },
+      alpha: { start: 1, end: 0 },
+      tint: [0xffd700, 0xfff4b3, 0xffe98a],
+      blendMode: 'ADD',
+      emitting: false,
+    });
+    emitter.setDepth(160);
+    emitter.explode(12);
+    this.scene.time.delayedCall(700, () => emitter.destroy());
   }
 
   setDisabled(d: boolean): void {
@@ -159,6 +215,8 @@ export class SpinButton extends Phaser.GameObjects.Container {
     if (d) {
       this.glowTween?.stop();
       this.glowTween = undefined;
+      this.breathTween?.stop();
+      this.breathTween = undefined;
       this.glow.setAlpha(0);
       this.bodyGroup.setAlpha(0.55);
       this.label.setAlpha(0.7);
@@ -170,6 +228,7 @@ export class SpinButton extends Phaser.GameObjects.Container {
       this.label.setText('SPIN');
       this.bodyGroup.setScale(1);
       this.startGlowTween();
+      this.startBreath();
     }
   }
 }

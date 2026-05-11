@@ -23,13 +23,14 @@ export class MainScene extends Phaser.Scene {
   private blockY = 0;
   private blockW = 0;
   private blockH = 0;
+  private cabinet!: CabinetFrame;
 
   constructor() {
     super({ key: 'MainScene' });
   }
 
   create(): void {
-    // 1. Background — velvet, light beams, ambient sparkles.
+    // 1. Background — velvet, light beams, corner spotlights, focus spot, continuous sparkles.
     new Background(this);
 
     // 2. Title bar.
@@ -45,8 +46,8 @@ export class MainScene extends Phaser.Scene {
     this.blockW = totalReelW;
     this.blockH = blockH;
 
-    // 4. Cabinet frame (with halo + corner ornaments).
-    new CabinetFrame(this, blockX, blockY, totalReelW, blockH);
+    // 4. Cabinet frame (with halo + pillars + corner ornaments + shine sweep + floor reflection).
+    this.cabinet = new CabinetFrame(this, blockX, blockY, totalReelW, blockH);
 
     // 5. Reels.
     for (let i = 0; i < NUM_REELS; i++) {
@@ -63,14 +64,14 @@ export class MainScene extends Phaser.Scene {
       drawReelSeparator(this, sx, blockY + 4, blockY + blockH - 4);
     }
 
-    // 7. SPIN button (circular, pulsing glow).
+    // 7. SPIN button (circular, multi-layer 3D, pulsing glow, breath anim).
     const btnY = blockY + blockH + 90;
     this.spinButton = new SpinButton(this, GAME_WIDTH / 2, btnY, () =>
       this.handleSpin(),
     );
     this.spinButton.setDepth(150);
 
-    // 8. HUD strip (CREDIT / BET / WIN).
+    // 8. HUD strip (CREDIT / BET / WIN) with scanlines.
     new Hud(this, GAME_HEIGHT - 80);
   }
 
@@ -96,8 +97,11 @@ export class MainScene extends Phaser.Scene {
   }
 
   private playReelStopFx(reelIndex: number): void {
-    const reelX =
-      this.blockX + reelIndex * (SYMBOL_SIZE + REEL_GAP);
+    const reelX = this.blockX + reelIndex * (SYMBOL_SIZE + REEL_GAP);
+    const reelCenterX = reelX + SYMBOL_SIZE / 2;
+    const reelCenterY = this.blockY + this.blockH / 2;
+
+    // Brief brightness flash over the column.
     const flash = this.add.graphics();
     flash.setDepth(130);
     flash.fillStyle(0xffffff, 0.5);
@@ -106,29 +110,85 @@ export class MainScene extends Phaser.Scene {
     this.tweens.add({
       targets: flash,
       alpha: 0,
-      duration: 180,
+      duration: 200,
       ease: 'Sine.Out',
       onComplete: () => flash.destroy(),
     });
 
-    const px = reelX + SYMBOL_SIZE / 2;
+    // Small white expanding flash circle at center of the column.
+    const pop = this.add.graphics();
+    pop.setDepth(131);
+    pop.setBlendMode(Phaser.BlendModes.ADD);
+    pop.fillStyle(0xffffff, 1);
+    pop.fillCircle(0, 0, 18);
+    pop.setPosition(reelCenterX, reelCenterY);
+    pop.setScale(0.2);
+    this.tweens.add({
+      targets: pop,
+      scale: 2.2,
+      alpha: 0,
+      duration: 260,
+      ease: 'Sine.Out',
+      onComplete: () => pop.destroy(),
+    });
+
+    // Brief warm tint on the symbol cells in this column.
+    this.reels[reelIndex].flashTint(0xfff5cc, 110);
+
+    // Sparkle burst at the bottom edge.
+    const px = reelCenterX;
     const py = this.blockY + this.blockH - 4;
     const burst = this.add.particles(px, py, SPARKLE_TEXTURE, {
-      speed: { min: 90, max: 180 },
+      speed: { min: 100, max: 200 },
       angle: { min: 200, max: 340 },
-      lifespan: 420,
-      scale: { start: 0.7, end: 0 },
+      lifespan: 460,
+      scale: { start: 0.75, end: 0 },
       alpha: { start: 1, end: 0 },
       tint: [0xffd700, 0xfff4b3, 0xffe98a],
       blendMode: 'ADD',
       emitting: false,
     });
     burst.setDepth(140);
-    burst.explode(10);
-    this.time.delayedCall(700, () => burst.destroy());
+    burst.explode(14);
+    this.time.delayedCall(800, () => burst.destroy());
 
+    // Last reel — bigger screen shake, halo pulse, expanding ring ripple.
     if (reelIndex === this.reels.length - 1) {
-      this.cameras.main.shake(110, 0.002);
+      this.cameras.main.shake(200, 0.005);
+
+      const halo = this.cabinet.handles.halo;
+      this.tweens.add({
+        targets: halo,
+        scaleX: 1.08,
+        scaleY: 1.08,
+        duration: 180,
+        yoyo: true,
+        ease: 'Sine.Out',
+      });
+
+      // Expanding gold ring from the cabinet center.
+      const ring = this.add.graphics();
+      ring.setDepth(141);
+      ring.setBlendMode(Phaser.BlendModes.ADD);
+      ring.lineStyle(3, 0xffd700, 1);
+      ring.strokeRoundedRect(
+        -this.blockW / 2 - 12,
+        -this.blockH / 2 - 12,
+        this.blockW + 24,
+        this.blockH + 24,
+        18,
+      );
+      ring.setPosition(this.blockX + this.blockW / 2, this.blockY + this.blockH / 2);
+      ring.setScale(1);
+      ring.setAlpha(0.7);
+      this.tweens.add({
+        targets: ring,
+        scale: 1.3,
+        alpha: 0,
+        duration: 700,
+        ease: 'Sine.Out',
+        onComplete: () => ring.destroy(),
+      });
     }
   }
 }

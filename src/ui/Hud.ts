@@ -12,6 +12,9 @@ interface PanelSpec {
 }
 
 export class Hud {
+  /** value text objects keyed by label so future systems can call .setText + pulse */
+  public readonly values: Record<string, Phaser.GameObjects.Text> = {};
+
   constructor(scene: Phaser.Scene, topY: number) {
     const panels: PanelSpec[] = [
       { label: 'CREDIT', value: '1000', valueColor: '#4be84b' },
@@ -31,6 +34,20 @@ export class Hud {
     }
   }
 
+  /** Briefly pulse the value text for a given label — used when its numeric state changes. */
+  pulseValue(label: string): void {
+    const val = this.values[label];
+    if (!val) return;
+    const scene = val.scene;
+    scene.tweens.add({
+      targets: val,
+      scale: { from: 1, to: 1.12 },
+      duration: 120,
+      yoyo: true,
+      ease: 'Sine.InOut',
+    });
+  }
+
   private drawPanel(scene: Phaser.Scene, x: number, y: number, spec: PanelSpec): void {
     const g = scene.add.graphics();
     g.setDepth(150);
@@ -43,6 +60,10 @@ export class Hud {
     // Inner inset highlight
     g.lineStyle(1, 0xffd700, 0.3);
     g.strokeRoundedRect(x + 3, y + 3, PANEL_W - 6, PANEL_H - 6, 6);
+
+    // Inner dark recess shadow (top edge).
+    g.fillStyle(0x000000, 0.45);
+    g.fillRect(x + 4, y + 4, PANEL_W - 8, 4);
 
     scene.add
       .text(x + PANEL_W / 2, y + 6, spec.label, {
@@ -64,6 +85,18 @@ export class Hud {
       .setOrigin(0.5, 1)
       .setDepth(151);
     val.setShadow(0, 0, spec.valueColor, 6, false, true);
+    this.values[spec.label] = val;
+
+    // Faint horizontal scanlines across the LED region — retro digital feel.
+    const scan = scene.add.graphics();
+    scan.setDepth(152);
+    const ledTop = y + 22;
+    const ledH = PANEL_H - 26;
+    const stride = 3;
+    scan.fillStyle(0x000000, 0.18);
+    for (let yy = ledTop; yy < ledTop + ledH; yy += stride) {
+      scan.fillRect(x + 6, yy, PANEL_W - 12, 1);
+    }
   }
 
   private drawBetButtons(scene: Phaser.Scene, panelX: number, panelY: number): void {

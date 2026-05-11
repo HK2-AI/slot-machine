@@ -7,11 +7,17 @@ const VISIBLE_ROWS = 3;
 const PAD_ROWS = 2;
 const N_DISPLAY = VISIBLE_ROWS + PAD_ROWS * 2;
 
+interface SymbolCell {
+  image: Phaser.GameObjects.Image;
+  text: Phaser.GameObjects.Text;
+}
+
 export class ReelView extends Phaser.GameObjects.Container {
   public readonly strip: ReelStrip;
   public readonly symbolSize: number;
   public readonly visibleRows: number = VISIBLE_ROWS;
-  private readonly cells: Phaser.GameObjects.Text[] = [];
+  public readonly cellsContainer: Phaser.GameObjects.Container;
+  private readonly cells: SymbolCell[] = [];
   private readonly cellStripIndex: number[] = [];
   // Continuous strip-index of the top visible row (integer when aligned).
   private topStripIndex = 0;
@@ -51,9 +57,35 @@ export class ReelView extends Phaser.GameObjects.Container {
     }
     this.add(bg);
 
-    // Symbol text cells.
+    // Inner shadow gradient on top + bottom of the viewport (inset glass feel).
+    const shadow = scene.add.graphics();
+    const sx = -symbolSize / 2;
+    const sw = symbolSize;
+    const sh = symbolSize * VISIBLE_ROWS;
+    // Top vignette: dark fading down.
+    shadow.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.55, 0.55, 0, 0);
+    shadow.fillRect(sx, 0, sw, Math.floor(sh * 0.22));
+    // Bottom vignette: dark fading up.
+    shadow.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0, 0.5, 0.5);
+    shadow.fillRect(sx, sh - Math.floor(sh * 0.22), sw, Math.floor(sh * 0.22));
+    // Diagonal glass shine band.
+    shadow.fillGradientStyle(0xffffff, 0xffffff, 0xffffff, 0xffffff, 0.0, 0.12, 0.0, 0.0);
+    shadow.fillRect(sx, Math.floor(sh * 0.18), sw, Math.floor(sh * 0.18));
+    shadow.setBlendMode(Phaser.BlendModes.NORMAL);
+
+    // Symbol cells container — sits below the shadow so glass reflection reads on top.
+    this.cellsContainer = scene.add.container(0, 0);
+    this.add(this.cellsContainer);
+    this.add(shadow);
+
     const fontSize = Math.floor(symbolSize * 0.55);
+    const imgSize = Math.floor(symbolSize * 0.82);
     for (let k = 0; k < N_DISPLAY; k++) {
+      const img = scene.add
+        .image(0, 0, '__MISSING')
+        .setOrigin(0.5)
+        .setDisplaySize(imgSize, imgSize)
+        .setVisible(false);
       const txt = scene.add
         .text(0, 0, '', {
           fontFamily: '"Arial Black", Arial, sans-serif',
@@ -65,8 +97,9 @@ export class ReelView extends Phaser.GameObjects.Container {
         })
         .setOrigin(0.5);
       txt.setShadow(0, 2, '#000000', 4, false, true);
-      this.add(txt);
-      this.cells.push(txt);
+      this.cellsContainer.add(img);
+      this.cellsContainer.add(txt);
+      this.cells.push({ image: img, text: txt });
       this.cellStripIndex.push(-1);
     }
 
@@ -78,6 +111,20 @@ export class ReelView extends Phaser.GameObjects.Container {
 
     scene.add.existing(this);
     this.refresh();
+  }
+
+  /** Briefly tint the visible cells (used on reel stop). */
+  public flashTint(color: number, durationMs: number): void {
+    for (const cell of this.cells) {
+      if (cell.image.visible) {
+        cell.image.setTint(color);
+      }
+    }
+    this.scene.time.delayedCall(durationMs, () => {
+      for (const cell of this.cells) {
+        cell.image.clearTint();
+      }
+    });
   }
 
   private refresh(): void {
@@ -93,12 +140,26 @@ export class ReelView extends Phaser.GameObjects.Container {
 
       if (this.cellStripIndex[k] !== normIdx) {
         const def = getSymbol(this.strip.getSymbolAt(stripIdx));
-        cell.setText(def.glyph);
-        cell.setColor(`#${def.color.toString(16).padStart(6, '0')}`);
+        if (this.scene.textures.exists(def.key)) {
+          cell.image.setTexture(def.key);
+          cell.image.setDisplaySize(
+            Math.floor(this.symbolSize * 0.82),
+            Math.floor(this.symbolSize * 0.82),
+          );
+          cell.image.setVisible(true);
+          cell.text.setVisible(false);
+        } else {
+          cell.image.setVisible(false);
+          cell.text.setVisible(true);
+          cell.text.setText(def.glyph);
+          cell.text.setColor(`#${def.color.toString(16).padStart(6, '0')}`);
+        }
         this.cellStripIndex[k] = normIdx;
       }
 
-      cell.setY(p * this.symbolSize + frac * this.symbolSize + this.symbolSize / 2);
+      const y = p * this.symbolSize + frac * this.symbolSize + this.symbolSize / 2;
+      cell.image.setY(y);
+      cell.text.setY(y);
     }
   }
 

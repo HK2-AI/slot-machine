@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
+import { SYMBOLS } from '../data/symbols';
 
 export class PreloadScene extends Phaser.Scene {
   constructor() {
@@ -23,7 +24,16 @@ export class PreloadScene extends Phaser.Scene {
       fill.fillRect(barX, barY, barW * value, barH);
     });
 
-    // P0: no assets to load yet. Placeholder for future symbol/UI atlas preload.
+    // Load symbol PNGs. Missing files trigger a loaderror; ReelView falls back to glyph.
+    const seen = new Set<string>();
+    for (const sym of SYMBOLS) {
+      if (seen.has(sym.key)) continue;
+      seen.add(sym.key);
+      this.load.image(sym.key, `symbols/${sym.key}.png`);
+    }
+    this.load.on('loaderror', (file: Phaser.Loader.File) => {
+      console.warn(`[preload] failed to load ${file.key} (${file.src})`);
+    });
   }
 
   create(): void {

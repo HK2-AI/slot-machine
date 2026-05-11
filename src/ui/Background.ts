@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 
 const SPARKLE_TEXTURE = 'fx-sparkle';
+const SPOT_TEXTURE = 'fx-spot';
 
 function ensureSparkleTexture(scene: Phaser.Scene): void {
   if (scene.textures.exists(SPARKLE_TEXTURE)) return;
@@ -17,9 +18,27 @@ function ensureSparkleTexture(scene: Phaser.Scene): void {
   g.destroy();
 }
 
+function ensureSpotTexture(scene: Phaser.Scene): void {
+  if (scene.textures.exists(SPOT_TEXTURE)) return;
+  const size = 256;
+  const g = scene.make.graphics({ x: 0, y: 0 }, false);
+  // Build a layered radial gradient (faint outer → bright core).
+  const steps = 14;
+  for (let i = steps; i >= 0; i--) {
+    const t = i / steps;
+    const r = (size / 2) * t;
+    const alpha = (1 - t) * 0.18 + (1 - t) ** 3 * 0.18; // taper toward center
+    g.fillStyle(0xffffff, alpha);
+    g.fillCircle(size / 2, size / 2, r);
+  }
+  g.generateTexture(SPOT_TEXTURE, size, size);
+  g.destroy();
+}
+
 export class Background {
   constructor(scene: Phaser.Scene) {
     ensureSparkleTexture(scene);
+    ensureSpotTexture(scene);
 
     // Base deep velvet fill.
     const base = scene.add.graphics();
@@ -67,22 +86,80 @@ export class Background {
       });
     }
 
-    // Drifting gold sparkles — sparse ambient emitter.
+    // Corner spotlights — soft radial gradient glows at 4 corners.
+    const cornerSpots: Array<[number, number]> = [
+      [0, 0],
+      [GAME_WIDTH, 0],
+      [0, GAME_HEIGHT],
+      [GAME_WIDTH, GAME_HEIGHT],
+    ];
+    for (let i = 0; i < cornerSpots.length; i++) {
+      const [sx, sy] = cornerSpots[i];
+      const spot = scene.add.image(sx, sy, SPOT_TEXTURE);
+      spot.setBlendMode(Phaser.BlendModes.ADD);
+      spot.setAlpha(0.65);
+      spot.setTint(0xffd97a);
+      spot.setScale(2.6);
+      spot.setDepth(2);
+      scene.tweens.add({
+        targets: spot,
+        scale: 2.85,
+        duration: 2400 + i * 600,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.InOut',
+      });
+    }
+
+    // Focus spotlight above the cabinet — gives a "stage" feel.
+    const focus = scene.add.image(cx, cy - 30, SPOT_TEXTURE);
+    focus.setBlendMode(Phaser.BlendModes.ADD);
+    focus.setAlpha(0.7);
+    focus.setTint(0xfff4b3);
+    focus.setScale(3.4, 2.4);
+    focus.setDepth(3);
+    scene.tweens.add({
+      targets: focus,
+      scaleX: 3.55,
+      scaleY: 2.5,
+      duration: 2200,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.InOut',
+    });
+
+    // Drifting gold sparkles — continuous ambient emitter.
     const emitter = scene.add.particles(0, 0, SPARKLE_TEXTURE, {
       x: { min: 0, max: GAME_WIDTH },
       y: GAME_HEIGHT + 12,
-      lifespan: 4000,
-      speedY: { min: -45, max: -22 },
-      speedX: { min: -12, max: 12 },
+      lifespan: { min: 3200, max: 5200 },
+      speedY: { min: -55, max: -25 },
+      speedX: { min: -18, max: 18 },
       scale: { start: 0.55, end: 0.1 },
-      alpha: { start: 0.6, end: 0 },
+      alpha: { start: 0.55, end: 0 },
       tint: [0xffd700, 0xffe98a, 0xfff4b3],
-      frequency: 1800,
+      frequency: 320,
       blendMode: 'ADD',
       quantity: 1,
     });
-    emitter.setDepth(3);
+    emitter.setDepth(4);
+
+    // Secondary slower sparkle layer for ambient depth.
+    const slow = scene.add.particles(0, 0, SPARKLE_TEXTURE, {
+      x: { min: 0, max: GAME_WIDTH },
+      y: { min: 0, max: GAME_HEIGHT },
+      lifespan: 2600,
+      speedY: { min: -10, max: 10 },
+      speedX: { min: -10, max: 10 },
+      scale: { start: 0.3, end: 0 },
+      alpha: { start: 0.35, end: 0 },
+      tint: [0xfff4b3, 0xffe98a],
+      frequency: 480,
+      blendMode: 'ADD',
+      quantity: 1,
+    });
+    slow.setDepth(4);
   }
 }
 
-export { SPARKLE_TEXTURE };
+export { SPARKLE_TEXTURE, SPOT_TEXTURE };
