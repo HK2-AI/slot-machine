@@ -9,7 +9,8 @@ const N_DISPLAY = VISIBLE_ROWS + PAD_ROWS * 2;
 
 export class ReelView extends Phaser.GameObjects.Container {
   public readonly strip: ReelStrip;
-  private readonly symbolSize: number;
+  public readonly symbolSize: number;
+  public readonly visibleRows: number = VISIBLE_ROWS;
   private readonly cells: Phaser.GameObjects.Text[] = [];
   private readonly cellStripIndex: number[] = [];
   // Continuous strip-index of the top visible row (integer when aligned).
@@ -30,23 +31,23 @@ export class ReelView extends Phaser.GameObjects.Container {
 
     // Cell backgrounds (3 visible).
     const bg = scene.add.graphics();
+    const cx = -symbolSize / 2 + 3;
+    const cw = symbolSize - 6;
+    const ch = symbolSize - 6;
     for (let i = 0; i < VISIBLE_ROWS; i++) {
-      bg.fillStyle(0x0d0d18, 0.92);
-      bg.fillRoundedRect(
-        -symbolSize / 2 + 3,
-        i * symbolSize + 3,
-        symbolSize - 6,
-        symbolSize - 6,
-        8,
-      );
-      bg.lineStyle(2, 0x2a2a44, 1);
-      bg.strokeRoundedRect(
-        -symbolSize / 2 + 3,
-        i * symbolSize + 3,
-        symbolSize - 6,
-        symbolSize - 6,
-        8,
-      );
+      const cy = i * symbolSize + 3;
+      // Vertical gradient fill.
+      bg.fillGradientStyle(0x161628, 0x161628, 0x08081a, 0x08081a, 1);
+      bg.fillRoundedRect(cx, cy, cw, ch, 8);
+      // Amber border.
+      bg.lineStyle(1.5, 0x6b5b2a, 1);
+      bg.strokeRoundedRect(cx, cy, cw, ch, 8);
+      // Top inset highlight.
+      bg.lineStyle(1, 0xffd700, 0.4);
+      bg.beginPath();
+      bg.moveTo(cx + 8, cy + 2);
+      bg.lineTo(cx + cw - 8, cy + 2);
+      bg.strokePath();
     }
     this.add(bg);
 
@@ -55,12 +56,15 @@ export class ReelView extends Phaser.GameObjects.Container {
     for (let k = 0; k < N_DISPLAY; k++) {
       const txt = scene.add
         .text(0, 0, '', {
-          fontFamily: 'Arial, sans-serif',
+          fontFamily: '"Arial Black", Arial, sans-serif',
           fontSize: `${fontSize}px`,
           fontStyle: 'bold',
           color: '#ffffff',
+          stroke: '#000000',
+          strokeThickness: 2,
         })
         .setOrigin(0.5);
+      txt.setShadow(0, 2, '#000000', 4, false, true);
       this.add(txt);
       this.cells.push(txt);
       this.cellStripIndex.push(-1);
