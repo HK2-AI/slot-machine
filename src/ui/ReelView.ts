@@ -113,6 +113,20 @@ export class ReelView extends Phaser.GameObjects.Container {
     this.refresh();
   }
 
+  /**
+   * Return the 3 symbol ids currently visible in this reel column,
+   * ordered top → middle → bottom (row 0, 1, 2).
+   * Only meaningful while the reel is at rest (post-spin).
+   */
+  public getVisibleSymbols(): string[] {
+    const base = Math.round(this.topStripIndex);
+    const out: string[] = [];
+    for (let r = 0; r < this.visibleRows; r++) {
+      out.push(this.strip.getSymbolAt(base + r));
+    }
+    return out;
+  }
+
   /** Briefly tint the visible cells (used on reel stop). */
   public flashTint(color: number, durationMs: number): void {
     for (const cell of this.cells) {
