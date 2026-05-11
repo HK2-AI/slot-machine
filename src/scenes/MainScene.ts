@@ -17,6 +17,7 @@ import { PaytableModal } from '../ui/PaytableModal';
 import { AutoSpinController } from '../ui/AutoSpinController';
 import { evaluate, totalWin, type WinLine } from '../systems/PaylineEvaluator';
 import { Balance } from '../systems/Balance';
+import { WinFx } from '../ui/WinFx';
 
 const NUM_REELS = 5;
 const VISIBLE_ROWS = 3;
@@ -38,6 +39,7 @@ export class MainScene extends Phaser.Scene {
   private hud!: Hud;
   private paylinePanel!: PaylinePanel;
   private autoSpin!: AutoSpinController;
+  private winFx!: WinFx;
 
   private betPerLine = DEFAULT_BET;
   private activeLines = DEFAULT_LINES;
@@ -119,6 +121,13 @@ export class MainScene extends Phaser.Scene {
     // HUD.
     this.hud = new Hud(this, GAME_HEIGHT - 80);
     this.refreshHud(true);
+
+    const creditCenter = this.hud.panelCenter('CREDIT') ?? { x: GAME_WIDTH / 2, y: GAME_HEIGHT - 60 };
+    this.winFx = new WinFx(
+      this,
+      { blockX, blockY, blockW: totalReelW, blockH, symbolSize: SYMBOL_SIZE, reelGap: REEL_GAP },
+      creditCenter,
+    );
 
     // Preview the paylines as soon as the scene boots so the player sees what
     // they're betting on.
@@ -207,17 +216,32 @@ export class MainScene extends Phaser.Scene {
     console.log('[spin] result =', result);
     console.log('[spin] wins =', wins, 'totalWin =', winSum);
 
+    const totalBet = this.betPerLine * this.activeLines;
     if (wins.length > 0) {
-      this.paylinePanel.showWins(wins);
+      this.paylinePanel.showWins(wins, (w) => this.winFx.floatLineAmount(w));
       Balance.add(winSum);
       this.balance = Balance.getBalance();
       this.lastWin = winSum;
-      this.hud.countTo('WIN', winSum, 800);
-      this.hud.countTo('CREDIT', this.balance, 800);
-      this.hud.pulseValue('WIN');
 
-      const totalBet = this.betPerLine * this.activeLines;
-      if (winSum >= totalBet * 10) this.playBigWin(winSum);
+      const isBig = winSum >= totalBet * 10;
+      const countDuration = isBig ? 1400 : 1000;
+      this.hud.countTo('WIN', winSum, countDuration);
+      this.hud.countTo('CREDIT', this.balance, countDuration);
+      this.hud.pulseValue('WIN');
+      this.hud.pulsePanel('CREDIT');
+      this.hud.pulsePanel('WIN');
+
+      this.winFx.centerBadge(winSum);
+      this.winFx.coinBurst(isBig ? 40 : 28);
+
+      if (isBig) {
+        this.playBigWin(winSum);
+        this.winFx.confettiShower();
+      }
+
+      window.dispatchEvent(
+        new CustomEvent('slot:win', { detail: { amount: winSum, lines: wins.length, isBig } }),
+      );
     }
 
     this.spinning = false;
@@ -259,9 +283,9 @@ export class MainScene extends Phaser.Scene {
   }
 
   private playBigWin(amount: number): void {
-    this.cameras.main.shake(420, 0.008);
+    this.cameras.main.shake(640, 0.008);
     const label = this.add
-      .text(GAME_WIDTH / 2, this.blockY + this.blockH / 2, `BIG WIN  +${amount}`, {
+      .text(GAME_WIDTH / 2, this.blockY + this.blockH / 2 - 80, `BIG WIN  +${amount}`, {
         fontFamily: '"Impact", "Arial Black", sans-serif',
         fontSize: '64px',
         fontStyle: 'bold',
@@ -283,8 +307,8 @@ export class MainScene extends Phaser.Scene {
       targets: label,
       y: label.y - 80,
       alpha: { from: 1, to: 0 },
-      duration: 1400,
-      delay: 600,
+      duration: 1600,
+      delay: 3000,
       ease: 'Sine.Out',
       onComplete: () => label.destroy(),
     });

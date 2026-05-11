@@ -21,6 +21,8 @@ export interface HudUpdate {
 
 export class Hud {
   public readonly values: Record<string, Phaser.GameObjects.Text> = {};
+  private readonly panelCenters: Record<string, { x: number; y: number }> = {};
+  private readonly panelContainers: Record<string, Phaser.GameObjects.Container> = {};
   private readonly tweenTargets: Record<string, { v: number }> = {};
   private activeTweens: Record<string, Phaser.Tweens.Tween | undefined> = {};
   private readonly specs: PanelSpec[];
@@ -101,49 +103,89 @@ export class Hud {
     val.scene.time.delayedCall(500, () => val.setColor(origColor));
   }
 
+  /** Return the world center of a HUD panel (used as coin-burst target). */
+  panelCenter(label: string): { x: number; y: number } | null {
+    return this.panelCenters[label] ?? null;
+  }
+
+  /** Briefly scale the panel container 1.0 → 1.1 → 1.0 + add a gold flash overlay. */
+  pulsePanel(label: string): void {
+    const wrap = this.panelContainers[label];
+    if (!wrap) return;
+    wrap.scene.tweens.add({
+      targets: wrap,
+      scale: { from: 1, to: 1.1 },
+      duration: 180,
+      yoyo: true,
+      ease: 'Sine.InOut',
+    });
+
+    const center = this.panelCenters[label];
+    if (!center) return;
+    const flash = wrap.scene.add.graphics();
+    flash.setDepth(160);
+    flash.setBlendMode(Phaser.BlendModes.ADD);
+    flash.fillStyle(0xffd700, 0.5);
+    flash.fillRoundedRect(center.x - PANEL_W / 2, center.y - PANEL_H / 2, PANEL_W, PANEL_H, 8);
+    wrap.scene.tweens.add({
+      targets: flash,
+      alpha: 0,
+      duration: 380,
+      ease: 'Sine.Out',
+      onComplete: () => flash.destroy(),
+    });
+  }
+
   private drawPanel(scene: Phaser.Scene, x: number, y: number, spec: PanelSpec): void {
+    const cx = x + PANEL_W / 2;
+    const cy = y + PANEL_H / 2;
+    const wrap = scene.add.container(cx, cy);
+    wrap.setDepth(150);
+
     const g = scene.add.graphics();
-    g.setDepth(150);
     g.fillGradientStyle(0x0a0a18, 0x0a0a18, 0x05050c, 0x05050c, 1);
-    g.fillRoundedRect(x, y, PANEL_W, PANEL_H, 8);
+    g.fillRoundedRect(-PANEL_W / 2, -PANEL_H / 2, PANEL_W, PANEL_H, 8);
     g.lineStyle(2, 0xffd700, 1);
-    g.strokeRoundedRect(x, y, PANEL_W, PANEL_H, 8);
+    g.strokeRoundedRect(-PANEL_W / 2, -PANEL_H / 2, PANEL_W, PANEL_H, 8);
     g.lineStyle(1, 0xffd700, 0.3);
-    g.strokeRoundedRect(x + 3, y + 3, PANEL_W - 6, PANEL_H - 6, 6);
-
+    g.strokeRoundedRect(-PANEL_W / 2 + 3, -PANEL_H / 2 + 3, PANEL_W - 6, PANEL_H - 6, 6);
     g.fillStyle(0x000000, 0.45);
-    g.fillRect(x + 4, y + 4, PANEL_W - 8, 4);
+    g.fillRect(-PANEL_W / 2 + 4, -PANEL_H / 2 + 4, PANEL_W - 8, 4);
+    wrap.add(g);
 
-    scene.add
-      .text(x + PANEL_W / 2, y + 6, spec.label, {
+    const labelText = scene.add
+      .text(0, -PANEL_H / 2 + 6, spec.label, {
         fontFamily: '"Arial Black", Arial, sans-serif',
         fontSize: '12px',
         fontStyle: 'bold',
         color: '#ffd700',
       })
-      .setOrigin(0.5, 0)
-      .setDepth(151);
+      .setOrigin(0.5, 0);
+    wrap.add(labelText);
 
     const val = scene.add
-      .text(x + PANEL_W / 2, y + PANEL_H - 6, spec.value, {
+      .text(0, PANEL_H / 2 - 6, spec.value, {
         fontFamily: '"Courier New", "Menlo", monospace',
         fontSize: '24px',
         fontStyle: 'bold',
         color: spec.valueColor,
       })
-      .setOrigin(0.5, 1)
-      .setDepth(151);
+      .setOrigin(0.5, 1);
     val.setShadow(0, 0, spec.valueColor, 6, false, true);
+    wrap.add(val);
+
     this.values[spec.label] = val;
     this.tweenTargets[spec.label] = { v: Number(spec.value) || 0 };
+    this.panelCenters[spec.label] = { x: cx, y: cy };
+    this.panelContainers[spec.label] = wrap;
 
     const scan = scene.add.graphics();
-    scan.setDepth(152);
-    const ledTop = y + 22;
+    const ledTop = -PANEL_H / 2 + 22;
     const ledH = PANEL_H - 26;
     scan.fillStyle(0x000000, 0.18);
     for (let yy = ledTop; yy < ledTop + ledH; yy += 3) {
-      scan.fillRect(x + 6, yy, PANEL_W - 12, 1);
+      scan.fillRect(-PANEL_W / 2 + 6, yy, PANEL_W - 12, 1);
     }
+    wrap.add(scan);
   }
 }

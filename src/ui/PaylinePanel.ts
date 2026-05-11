@@ -95,13 +95,11 @@ export class PaylinePanel {
   }
 
   /** Render the full set of winning lines + cycle highlight. */
-  public showWins(wins: WinLine[]): void {
+  public showWins(wins: WinLine[], onCycleTick?: (win: WinLine) => void): void {
     this.clearWins();
     if (wins.length === 0) return;
-    // Persistent dim layer showing every win simultaneously, plus a brighter
-    // cycling highlight that walks through them one at a time.
     this.drawAllWinsDim(wins);
-    this.startCycle(wins);
+    this.startCycle(wins, onCycleTick);
   }
 
   public clearWins(): void {
@@ -135,9 +133,12 @@ export class PaylinePanel {
     }
   }
 
-  private startCycle(wins: WinLine[]): void {
+  private startCycle(wins: WinLine[], onCycleTick?: (win: WinLine) => void): void {
     let idx = 0;
-    const showOne = (i: number) => this.highlightWin(wins[i]);
+    const showOne = (i: number) => {
+      this.highlightWin(wins[i]);
+      onCycleTick?.(wins[i]);
+    };
     showOne(idx);
     if (wins.length === 1) return;
     this.cycleTimer = this.scene.time.addEvent({

@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 import { PAYOUTS, PAYOUT_DISPLAY_ORDER } from '../data/payouts';
 import { getSymbol } from '../data/symbols';
+import { enableContainerInput } from './containerInput';
 
 const MODAL_W = 720;
 const MODAL_H = 540;
@@ -43,7 +44,7 @@ export class PaytableModal {
     c.add(t);
 
     c.setSize(r * 2, r * 2);
-    c.setInteractive(new Phaser.Geom.Circle(0, 0, r), Phaser.Geom.Circle.Contains);
+    enableContainerInput(c, new Phaser.Geom.Circle(0, 0, r), Phaser.Geom.Circle.Contains);
     c.on('pointerover', () =>
       this.scene.tweens.add({ targets: c, scale: 1.1, duration: 120, ease: 'Sine.Out' }),
     );

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { SPARKLE_TEXTURE } from './Background';
+import { enableContainerInput } from './containerInput';
 
 const RADIUS = 60;
 
@@ -91,7 +92,8 @@ export class SpinButton extends Phaser.GameObjects.Container {
 
     // Hit area.
     this.setSize(RADIUS * 2, RADIUS * 2);
-    this.setInteractive(
+    enableContainerInput(
+      this,
       new Phaser.Geom.Circle(0, 0, RADIUS),
       Phaser.Geom.Circle.Contains,
     );

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { enableContainerInput } from './containerInput';
 
 interface AutoSpinOptions {
   spin: () => void;
@@ -57,7 +58,7 @@ export class AutoSpinController {
     c.add(this.labelText);
 
     c.setSize(w, h);
-    c.setInteractive(new Phaser.Geom.Rectangle(-w / 2, -h / 2, w, h), Phaser.Geom.Rectangle.Contains);
+    enableContainerInput(c, new Phaser.Geom.Rectangle(-w / 2, -h / 2, w, h), Phaser.Geom.Rectangle.Contains);
     c.on('pointerover', () =>
       scene.tweens.add({ targets: c, scale: 1.06, duration: 100, ease: 'Sine.Out' }),
     );
