@@ -45,6 +45,8 @@ class AudioManagerImpl {
   private bgm?: Phaser.Sound.BaseSound;
   private loopSounds: Record<string, Phaser.Sound.BaseSound | undefined> = {};
   private coinBurst: { count: number; windowStart: number } = { count: 0, windowStart: 0 };
+  private unlocked = false;
+  private bgmRequested = false;
 
   constructor() {
     this.prefs = this.loadPrefs();
@@ -62,12 +64,67 @@ class AudioManagerImpl {
   attach(scene: Phaser.Scene): void {
     this.scene = scene;
     this.applyPrefsToGame();
+    this.installUnlockHandler(scene);
+  }
+
+  /**
+   * Resume the WebAudio context on first user gesture and (re)start any
+   * deferred BGM. Browsers suspend new AudioContexts until a user-initiated
+   * event runs in the same task — without this, every play() that fires
+   * before the user clicks is silent (incl. our autoplaying BGM).
+   */
+  private installUnlockHandler(scene: Phaser.Scene): void {
+    const sound = scene.sound as Phaser.Sound.WebAudioSoundManager;
+    const ctx = sound.context as AudioContext | undefined;
+    if (!ctx) {
+      this.unlocked = true;
+      return;
+    }
+    if (ctx.state === 'running') {
+      this.unlocked = true;
+      return;
+    }
+
+    const tryResume = () => {
+      if (this.unlocked) return;
+      const p = ctx.resume();
+      const finish = () => {
+        if (ctx.state !== 'running') return;
+        this.unlocked = true;
+        if (this.bgmRequested) this.startBgm();
+        scene.input.off('pointerdown', tryResume);
+        scene.input.keyboard?.off('keydown', tryResume);
+        window.removeEventListener('pointerdown', winHandler, true);
+        window.removeEventListener('keydown', winHandler, true);
+        window.removeEventListener('touchstart', winHandler, true);
+      };
+      if (p && typeof p.then === 'function') p.then(finish, finish);
+      else finish();
+    };
+    const winHandler = () => tryResume();
+
+    scene.input.on('pointerdown', tryResume);
+    scene.input.keyboard?.on('keydown', tryResume);
+    // Document-level fallback: fires on the very first mousedown — earlier
+    // than Phaser's pointerdown propagation in some browsers — so the click
+    // sfx triggered on the same pointerdown lands on a running context.
+    window.addEventListener('pointerdown', winHandler, true);
+    window.addEventListener('keydown', winHandler, true);
+    window.addEventListener('touchstart', winHandler, true);
   }
 
   play(key: string, opts: PlayOpts = {}): Phaser.Sound.BaseSound | null {
     if (!this.scene) return null;
     if (!this.scene.cache.audio.exists(key)) return null;
     if (this.prefs.mute) return null;
+    // If we still haven't unlocked, a play() called inside a user-gesture
+    // handler is itself a valid gesture — try a synchronous resume so the
+    // sound source we're about to start lands on a running context.
+    if (!this.unlocked) {
+      const ctx = (this.scene.sound as Phaser.Sound.WebAudioSoundManager)
+        .context as AudioContext | undefined;
+      if (ctx && ctx.state !== 'running') ctx.resume().catch(() => {});
+    }
 
     const isBgm = BGM_KEYS.has(key);
     const baseVol = isBgm ? this.prefs.bgmVol : this.prefs.sfxVol;
@@ -129,11 +186,18 @@ class AudioManagerImpl {
     if (s) s.stop();
   }
 
-  /** Play BGM with a soft fade-in. */
+  /** Play BGM with a soft fade-in. Deferred until first user gesture. */
   startBgm(): void {
     if (!this.scene) return;
     if (!this.scene.cache.audio.exists('bgm')) return;
     if (this.bgm && this.bgm.isPlaying) return;
+    // Defer until the AudioContext is unlocked — starting a BufferSource on
+    // a suspended context produces silence even after the context resumes.
+    if (!this.unlocked) {
+      this.bgmRequested = true;
+      return;
+    }
+    this.bgmRequested = false;
     this.bgm = this.scene.sound.add('bgm', {
       loop: true,
       volume: 0,
