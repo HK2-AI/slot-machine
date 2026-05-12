@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Slot Machine</string>
+    <string name="title_activity_main">Slot Machine</string>
+    <string name="package_name">slot.eggtart.app</string>
+    <string name="custom_url_scheme">slot.eggtart.app</string>
+</resources>
