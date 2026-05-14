@@ -74,7 +74,7 @@ export class SettingsModal {
     const W = this.scene.scale.width;
     const H = this.scene.scale.height;
     const MODAL_W = Math.min(380, W - 24);
-    const MODAL_H = Math.min(420, H - 24);
+    const MODAL_H = Math.min(460, H - 24);
 
     const container = this.scene.add.container(0, 0);
     container.setDepth(DEPTH);
@@ -169,9 +169,21 @@ export class SettingsModal {
       () => settings.isQuickSpin(),
       (v) => settings.setQuickSpin(v),
     );
+    rowY += ROW_GAP;
+
+    // ── Gamble toggle ──
+    this.addToggleRow(
+      container,
+      rowX,
+      rowY,
+      rowW,
+      'GAMBLE',
+      () => settings.isGambleEnabled(),
+      (v) => settings.setGambleEnabled(v),
+    );
     rowY += ROW_GAP - 8;
 
-    // ── Session stats section ──
+    // ── Session stats section (also hosts TOP UP shortcut) ──
     this.addStatsSection(container, mx, my, MODAL_W, rowY + 14, compact);
 
     // Close (X) button.
@@ -231,7 +243,11 @@ export class SettingsModal {
   ): void {
     const padX = 18;
     const w = modalW - padX * 2;
-    const h = compact ? 80 : 110;
+    // Reserve a bottom strip for buttons (TOP UP / RESET) so they never
+    // collide with the stat cells above.
+    const buttonStripH = 30;
+    const cellsH = compact ? 64 : 84;
+    const h = cellsH + buttonStripH;
     const x = mx + padX;
 
     const g = this.scene.add.graphics();
@@ -254,14 +270,14 @@ export class SettingsModal {
       .setOrigin(0, 0.5);
     parent.add(titleT);
 
-    // 2×2 grid of stats. Cells are recomputed live from sessionStats.
+    // 2×2 grid of stats — confined to cellsH (button strip lives below).
     const cellW = w / 2;
-    const cellH = (h - 14) / 2;
-    const cellPadY = 12;
+    const cellH = cellsH / 2;
+    const cellTop = topY + 6;
     const labelPx = compact ? 9 : 10;
-    const valuePx = compact ? 16 : 20;
-    const labelOff = compact ? 9 : 12;
-    const valueOff = compact ? 7 : 8;
+    const valuePx = compact ? 14 : 18;
+    const labelOff = compact ? 8 : 10;
+    const valueOff = compact ? 6 : 8;
 
     const cells: { label: string; getter: () => string; color: () => string }[] = [
       {
@@ -294,7 +310,7 @@ export class SettingsModal {
       const col = i % 2;
       const row = Math.floor(i / 2);
       const cx = x + col * cellW + cellW / 2;
-      const cy = topY + cellPadY + row * cellH + cellH / 2;
+      const cy = cellTop + row * cellH + cellH / 2;
 
       const labelT = this.scene.add
         .text(cx, cy - labelOff, cells[i].label, {
@@ -330,15 +346,17 @@ export class SettingsModal {
     // Detach when the parent modal container is destroyed.
     parent.once(Phaser.GameObjects.Events.DESTROY, () => unsub());
 
-    // Reset button — small, bottom-right of the box.
+    const btnH = 22;
+    // Buttons live in the dedicated bottom strip — never overlap the cells.
+    const btnY = topY + h - buttonStripH / 2;
+
+    // RESET — bottom-right.
     const resetW = 60;
-    const resetH = 22;
     const resetX = x + w - resetW / 2 - 8;
-    const resetY = topY + h - resetH / 2 - 8;
-    const resetBtn = makeButton(this.scene, resetX, resetY, {
+    const resetBtn = makeButton(this.scene, resetX, btnY, {
       shape: 'rect',
       w: resetW,
-      h: resetH,
+      h: btnH,
       hoverScale: 1.06,
       pressScale: 0.94,
       onClick: () => {
@@ -348,9 +366,9 @@ export class SettingsModal {
     });
     const rg = this.scene.add.graphics();
     rg.fillStyle(0x222238, 1);
-    rg.fillRoundedRect(-resetW / 2, -resetH / 2, resetW, resetH, resetH / 2);
+    rg.fillRoundedRect(-resetW / 2, -btnH / 2, resetW, btnH, btnH / 2);
     rg.lineStyle(1, 0xff6677, 0.9);
-    rg.strokeRoundedRect(-resetW / 2, -resetH / 2, resetW, resetH, resetH / 2);
+    rg.strokeRoundedRect(-resetW / 2, -btnH / 2, resetW, btnH, btnH / 2);
     resetBtn.add(rg);
     const rt = this.scene.add
       .text(0, 0, 'RESET', {
@@ -362,6 +380,40 @@ export class SettingsModal {
       .setOrigin(0.5);
     resetBtn.add(rt);
     parent.add(resetBtn);
+
+    // TOP UP — bottom-left of stats panel. Calls into the scene's refill flow.
+    const topUpW = 78;
+    const topUpX = x + topUpW / 2 + 8;
+    const topUpBtn = makeButton(this.scene, topUpX, btnY, {
+      shape: 'rect',
+      w: topUpW,
+      h: btnH,
+      hoverScale: 1.06,
+      pressScale: 0.94,
+      onClick: () => {
+        audio.play('click');
+        // Close the settings modal first so the refill modal layers cleanly.
+        this.close();
+        const sceneAny = this.scene as Phaser.Scene & { openRefill?: () => void };
+        if (typeof sceneAny.openRefill === 'function') sceneAny.openRefill();
+      },
+    });
+    const tg = this.scene.add.graphics();
+    tg.fillGradientStyle(0xffe98a, 0xffe98a, 0xffd700, 0xc9920a, 1);
+    tg.fillRoundedRect(-topUpW / 2, -btnH / 2, topUpW, btnH, btnH / 2);
+    tg.lineStyle(1, 0xfff4b3, 1);
+    tg.strokeRoundedRect(-topUpW / 2, -btnH / 2, topUpW, btnH, btnH / 2);
+    topUpBtn.add(tg);
+    const tt = this.scene.add
+      .text(0, 0, '+ TOP UP', {
+        fontFamily: '"Arial Black", Arial, sans-serif',
+        fontSize: '10px',
+        fontStyle: 'bold',
+        color: '#1a0a00',
+      })
+      .setOrigin(0.5);
+    topUpBtn.add(tt);
+    parent.add(topUpBtn);
   }
 
   /** Read current SFX volume from AudioManager via its persisted prefs. */

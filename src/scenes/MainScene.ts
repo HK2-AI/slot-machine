@@ -22,6 +22,9 @@ import { settings, sessionStats } from '../systems/Settings';
 import { SettingsModal } from '../ui/SettingsModal';
 import { SpinHistory, type SpinTier } from '../ui/SpinHistory';
 import { BuyBonusModal } from '../ui/BuyBonusModal';
+import { RefillModal } from '../ui/RefillModal';
+import { GambleModal } from '../ui/GambleModal';
+import { StreakChip } from '../ui/StreakChip';
 
 const NUM_REELS = 5;
 const VISIBLE_ROWS = 3;
@@ -93,6 +96,12 @@ export class MainScene extends Phaser.Scene {
   // free-spin multiplier when both apply.
   private mysteryMultiplier = 1;
   private buyBonus?: BuyBonusModal;
+  private refill?: RefillModal;
+  private gamble?: GambleModal;
+  private streakChip?: StreakChip;
+  private streakCount = 0;
+  /** Win-streak bonus computed *before* a spin from the current streak count. */
+  private streakMultiplierAdd = 0;
 
   private resizeTimer?: Phaser.Time.TimerEvent;
 
@@ -326,6 +335,23 @@ export class MainScene extends Phaser.Scene {
 
     // Spin history — top-LEFT pill mirroring the gear placement.
     this.spinHistory = new SpinHistory(this, settingsOffset + 50, settingsOffset);
+
+    // Streak chip — sits below the spin history. Hidden until streak >= 2.
+    this.streakChip = new StreakChip(this, settingsOffset + 50, settingsOffset + 22);
+    this.streakChip.setStreak(this.streakCount);
+
+    // Refill modal (no button — auto-pops on broke, or via Settings TOP UP).
+    this.refill = new RefillModal(this, {
+      onRefilled: () => {
+        this.balance = Balance.getBalance();
+        this.hud.countTo('CREDIT', this.balance, 600);
+        this.hud.pulsePanel('CREDIT');
+        this.refreshBuyBonusEnabled();
+      },
+    });
+
+    // Gamble modal (lazy — only built once needed by post-win flow).
+    this.gamble = new GambleModal(this);
 
     // Buy Bonus — top, left of the gear, mirrors the layout language.
     const buyBonusX = L.w - settingsOffset - 32 - 60;
@@ -572,6 +598,10 @@ export class MainScene extends Phaser.Scene {
       if (this.mysteryMultiplier > 1) {
         this.showMysteryBanner(this.mysteryMultiplier);
       }
+      // Lock in streak bonus from current chain — applies to THIS spin's wins.
+      this.streakMultiplierAdd = this.computeStreakBonus(this.streakCount);
+    } else {
+      this.streakMultiplierAdd = 0;
     }
 
     this.refreshBuyBonusEnabled();
@@ -616,7 +646,10 @@ export class MainScene extends Phaser.Scene {
     const result: string[][] = this.reels.map((r) => r.getVisibleSymbols());
     const rawWins: WinLine[] = evaluate(result, [...PAYLINES], this.activeLines, this.betPerLine);
     const isFreeSpin = this.freeSpinsRemaining > 0;
-    const multiplier = (isFreeSpin ? this.FREE_SPIN_MULTIPLIER : 1) * this.mysteryMultiplier;
+    // Free-spin × mystery is multiplicative. Streak rides on top additively
+    // so a "warm" streak still rewards you even on a 1× base spin.
+    let multiplier = (isFreeSpin ? this.FREE_SPIN_MULTIPLIER : 1) * this.mysteryMultiplier;
+    if (!isFreeSpin) multiplier += this.streakMultiplierAdd;
     const wins: WinLine[] =
       multiplier === 1
         ? rawWins
@@ -669,8 +702,20 @@ export class MainScene extends Phaser.Scene {
     // every win (paid + free-spin wins) towards "won this session".
     sessionStats.record(isFreeSpin ? 0 : totalBet, winSum);
 
-    // Mystery is one-shot per spin — clear before next.
+    // Streak — paid spins only. Win advances; loss resets.
+    if (!isFreeSpin) {
+      if (winSum > 0) {
+        this.streakCount++;
+        this.streakChip?.setStreak(this.streakCount);
+      } else if (this.streakCount > 0) {
+        this.streakCount = 0;
+        this.streakChip?.reset();
+      }
+    }
+
+    // Mystery / streak are one-shot per spin — clear before next.
     this.mysteryMultiplier = 1;
+    this.streakMultiplierAdd = 0;
 
     // Scatter / free-spin trigger.
     const scatters = countScatters(result);
@@ -679,42 +724,89 @@ export class MainScene extends Phaser.Scene {
     this.spinning = false;
     this.spinButton.setSpinningMode(false);
 
-    if (awarded > 0) {
-      this.triggerFreeSpins(scatters, awarded);
-    } else if (isFreeSpin) {
-      this.advanceFreeSpins();
-    } else {
-      this.autoSpin.onSpinComplete();
-    }
+    const finishUp = () => {
+      if (awarded > 0) {
+        this.triggerFreeSpins(scatters, awarded);
+      } else if (isFreeSpin) {
+        this.advanceFreeSpins();
+      } else {
+        this.autoSpin.onSpinComplete();
+      }
+      this.refreshBuyBonusEnabled();
+      this.paylinePanel.showPreview(this.activeLines);
+    };
 
+    // Optional gamble — paid wins only, never during free spins, scatter
+    // triggers, or autoplay (would be too disruptive).
+    const canGamble =
+      winSum > 0 &&
+      !isFreeSpin &&
+      awarded === 0 &&
+      settings.isGambleEnabled() &&
+      !this.autoSpin.isAutoActive() &&
+      !!this.gamble;
+    if (canGamble) {
+      this.time.delayedCall(700, () => {
+        this.gamble!.open(winSum, {
+          onResolve: (final) => {
+            this.applyGambleResult(winSum, final);
+            finishUp();
+          },
+        });
+      });
+    } else {
+      finishUp();
+    }
+  }
+
+  /**
+   * Reconcile balance + HUD after a gamble: original `winSum` is already in
+   * the player's balance. `final` is what they walk away with (0 or 2×).
+   */
+  private applyGambleResult(winSum: number, final: number): void {
+    const delta = final - winSum;
+    if (delta === 0) return;
+    if (delta > 0) Balance.add(delta);
+    else Balance.deduct(Math.abs(delta));
+    this.balance = Balance.getBalance();
+    this.lastWin = final;
+    this.hud.countTo('CREDIT', this.balance, 600);
+    this.hud.countTo('WIN', final, 600);
+    if (final === 0) {
+      this.hud.flashError('WIN');
+      // A bust kills the streak — gamble loss is morally a "loss" spin.
+      if (this.streakCount > 0) {
+        this.streakCount = 0;
+        this.streakChip?.reset();
+      }
+    } else {
+      this.hud.pulsePanel('WIN');
+      this.hud.pulsePanel('CREDIT');
+      this.winFx.coinBurst(20);
+    }
     this.refreshBuyBonusEnabled();
-    this.paylinePanel.showPreview(this.activeLines);
+  }
+
+  /** Streak → bonus added to the spin's effective multiplier. */
+  private computeStreakBonus(streak: number): number {
+    if (streak >= 8) return 2;
+    if (streak >= 5) return 1;
+    if (streak >= 3) return 0.5;
+    return 0;
   }
 
   private indicateInsufficient(): void {
     audio.play('error');
     this.hud.flashError('CREDIT');
-    const t = this.add
-      .text(this.scale.width / 2, this.blockY + this.blockH + 30, 'INSUFFICIENT CREDITS', {
-        fontFamily: '"Arial Black", Arial, sans-serif',
-        fontSize: '22px',
-        fontStyle: 'bold',
-        color: '#ff4455',
-        stroke: '#000000',
-        strokeThickness: 4,
-      })
-      .setOrigin(0.5)
-      .setDepth(220);
-    t.setShadow(0, 2, '#000000', 6, false, true);
-    this.tweens.add({
-      targets: t,
-      alpha: { from: 1, to: 0 },
-      y: t.y - 30,
-      duration: 500,
-      ease: 'Sine.Out',
-      onComplete: () => t.destroy(),
-    });
     this.autoSpin.stop();
+    // Player is broke (or close to it) — pop the refill prompt instead of
+    // a fade-out toast so they have a one-tap path back into the game.
+    this.refill?.open('broke');
+  }
+
+  /** Manual top-up entry point — used by the Settings drawer. */
+  public openRefill(): void {
+    this.refill?.open('manual');
   }
 
   // ---------- free spins ----------

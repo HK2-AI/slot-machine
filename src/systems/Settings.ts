@@ -2,9 +2,10 @@ const STORAGE_KEY = 'slot-game-prefs';
 
 interface GamePrefs {
   quickSpin: boolean;
+  gambleEnabled: boolean;
 }
 
-const DEFAULT: GamePrefs = { quickSpin: false };
+const DEFAULT: GamePrefs = { quickSpin: false, gambleEnabled: false };
 
 type Listener = () => void;
 
@@ -27,6 +28,17 @@ class SettingsImpl {
     this.notify();
   }
 
+  isGambleEnabled(): boolean {
+    return this.prefs.gambleEnabled;
+  }
+
+  setGambleEnabled(v: boolean): void {
+    if (this.prefs.gambleEnabled === v) return;
+    this.prefs.gambleEnabled = v;
+    this.save();
+    this.notify();
+  }
+
   /** Subscribe to setting changes. Returns an unsubscribe fn. */
   onChange(fn: Listener): () => void {
     this.listeners.add(fn);
@@ -44,6 +56,7 @@ class SettingsImpl {
       const p = JSON.parse(raw);
       return {
         quickSpin: typeof p.quickSpin === 'boolean' ? p.quickSpin : DEFAULT.quickSpin,
+        gambleEnabled: typeof p.gambleEnabled === 'boolean' ? p.gambleEnabled : DEFAULT.gambleEnabled,
       };
     } catch {
       return { ...DEFAULT };
