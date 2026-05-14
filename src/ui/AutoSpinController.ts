@@ -35,34 +35,33 @@ export class AutoSpinController {
     btnY: number,
     private readonly opts: AutoSpinOptions,
   ) {
-    const w = 80;
-    const h = 44;
+    const r = 22;
     const c = scene.add.container(btnX, btnY);
     c.setDepth(150);
     const g = scene.add.graphics();
     g.fillStyle(0x1a1a2e, 1);
-    g.fillRoundedRect(-w / 2, -h / 2, w, h, 10);
+    g.fillCircle(0, 0, r);
     g.lineStyle(2, 0xffd700, 1);
-    g.strokeRoundedRect(-w / 2, -h / 2, w, h, 10);
-    g.lineStyle(1, 0xffd700, 0.3);
-    g.strokeRoundedRect(-w / 2 + 3, -h / 2 + 3, w - 6, h - 6, 8);
+    g.strokeCircle(0, 0, r);
+    g.lineStyle(1, 0xffd700, 0.4);
+    g.strokeCircle(0, 0, r - 3);
     c.add(g);
 
     this.labelText = scene.add
-      .text(0, 0, 'AUTO', {
+      .text(0, 0, '↻', {
         fontFamily: '"Arial Black", Arial, sans-serif',
-        fontSize: '18px',
+        fontSize: '26px',
         fontStyle: 'bold',
         color: '#ffd700',
       })
       .setOrigin(0.5);
     c.add(this.labelText);
 
-    c.setSize(w, h);
-    enableContainerInput(c, new Phaser.Geom.Rectangle(-w / 2, -h / 2, w, h), Phaser.Geom.Rectangle.Contains);
+    c.setSize(r * 2, r * 2);
+    enableContainerInput(c, new Phaser.Geom.Circle(0, 0, r), Phaser.Geom.Circle.Contains);
     c.on('pointerover', () => {
       scene.input.setDefaultCursor('pointer');
-      scene.tweens.add({ targets: c, scale: 1.06, duration: 100, ease: 'Sine.Out' });
+      scene.tweens.add({ targets: c, scale: 1.08, duration: 100, ease: 'Sine.Out' });
     });
     c.on('pointerout', () => {
       scene.input.setDefaultCursor('default');
@@ -146,10 +145,23 @@ export class AutoSpinController {
   private start(count: number): void {
     const total = count === Infinity ? -1 : count;
     this.state = { kind: 'running', remaining: total, total };
-    this.labelText.setText('STOP');
-    this.labelText.setColor('#ff5566');
+    this.refreshLabel();
     this.opts.onStateChange?.(this.state);
     this.tryNextSpin();
+  }
+
+  /** Idle: ↻ icon. Running: remaining count (or ∞) in red, tap to stop. */
+  private refreshLabel(): void {
+    if (this.state.kind === 'idle') {
+      this.labelText.setText('↻');
+      this.labelText.setColor('#ffd700');
+      this.labelText.setFontSize(26);
+      return;
+    }
+    const tail = this.state.total === -1 ? '∞' : String(this.state.remaining);
+    this.labelText.setText(tail);
+    this.labelText.setColor('#ff5566');
+    this.labelText.setFontSize(tail.length >= 3 ? 16 : 20);
   }
 
   public stop(): void {
@@ -157,8 +169,7 @@ export class AutoSpinController {
     this.state = { kind: 'idle' };
     this.waitTimer?.remove();
     this.waitTimer = undefined;
-    this.labelText.setText('AUTO');
-    this.labelText.setColor('#ffd700');
+    this.refreshLabel();
     this.opts.onStateChange?.(this.state);
   }
 
@@ -176,6 +187,7 @@ export class AutoSpinController {
         return;
       }
     }
+    this.refreshLabel();
     this.opts.onStateChange?.(this.state);
     this.waitTimer = this.scene.time.delayedCall(INTER_SPIN_DELAY, () => this.tryNextSpin());
   }

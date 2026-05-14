@@ -9,12 +9,12 @@ import { Background, SPARKLE_TEXTURE } from '../ui/Background';
 import { CabinetFrame, drawReelSeparator } from '../ui/CabinetFrame';
 import { SpinButton } from '../ui/SpinButton';
 import { Hud } from '../ui/Hud';
-import { createTitle } from '../ui/Title';
+import { createTitle, TITLE_BAR_PAD_V } from '../ui/Title';
 import { PaylinePanel } from '../ui/PaylinePanel';
 import { Stepper } from '../ui/Stepper';
 import { PaytableModal } from '../ui/PaytableModal';
 import { AutoSpinController } from '../ui/AutoSpinController';
-import { evaluate, totalWin, type WinLine } from '../systems/PaylineEvaluator';
+import { evaluate, totalWin, countScatters, freeSpinsAwarded, type WinLine } from '../systems/PaylineEvaluator';
 import { Balance } from '../systems/Balance';
 import { WinFx } from '../ui/WinFx';
 import { audio } from '../systems/AudioManager';
@@ -22,7 +22,7 @@ import { MuteButton } from '../ui/MuteButton';
 
 const NUM_REELS = 5;
 const VISIBLE_ROWS = 3;
-const REEL_GAP = 6;
+const REEL_GAP = 4;
 
 const DEFAULT_BET = 1;
 const DEFAULT_LINES = 20;
@@ -32,11 +32,28 @@ interface LayoutDims {
   h: number;
   portrait: boolean;
   symbolSize: number;
+  cellH: number;
   blockX: number;
   blockY: number;
   blockW: number;
   blockH: number;
   spinRadius: number;
+  titleSize: number;
+  titleBarH: number;
+  titleBarW: number;
+  titleCenterY: number;
+  hudPanelW: number;
+  hudPanelH: number;
+  hudPanelGap: number;
+  hudCenterX: number;
+  hudCenterY: number;
+  stepperW: number;
+  stepperH: number;
+  stepperY: number;
+  spinY: number;
+  // Landscape-only: unified bottom control deck.
+  deckTop: number;
+  deckH: number;
 }
 
 export class MainScene extends Phaser.Scene {
@@ -59,6 +76,15 @@ export class MainScene extends Phaser.Scene {
   private balance = 0;
   private lastWin = 0;
 
+  // Free spin state.
+  private freeSpinsRemaining = 0;
+  private freeSpinsTotal = 0;
+  private freeSpinsWinSoFar = 0;
+  private readonly FREE_SPIN_MULTIPLIER = 2;
+  private freeSpinBadge?: Phaser.GameObjects.Container;
+  private freeSpinBadgeText?: Phaser.GameObjects.Text;
+  private freeSpinTimer?: Phaser.Time.TimerEvent;
+
   private resizeTimer?: Phaser.Time.TimerEvent;
 
   constructor() {
@@ -77,6 +103,7 @@ export class MainScene extends Phaser.Scene {
     this.events.once('shutdown', () => {
       this.scale.off('resize', this.onResize, this);
       this.resizeTimer?.remove();
+      this.freeSpinTimer?.remove();
     });
   }
 
@@ -91,33 +118,127 @@ export class MainScene extends Phaser.Scene {
     const w = this.scale.width;
     const h = this.scale.height;
     const portrait = h > w;
+    const hudPanelCount = 3;
 
-    // Vertical budget split: title | HUD | reels | SPIN-row.
-    const titleSpace = portrait ? Math.max(54, h * 0.055) : Math.max(36, h * 0.075);
-    const hudSpace = portrait ? Math.max(60, h * 0.075) : Math.max(48, h * 0.11);
+    if (portrait) {
+      // Tight chrome — reels dominate. Title becomes a slim header strip.
+      const titleSize = Math.max(16, Math.min(22, Math.floor(w / 18)));
+      const titleBarH = titleSize + TITLE_BAR_PAD_V * 2;
+      const titleBarW = Math.min(w - 16, titleSize * 17);
+      const titleTop = 4;
+      const titleCenterY = titleTop + titleBarH / 2;
 
-    // SPIN button radius (also used as bottom reserve in landscape).
-    const spinRadius = portrait
-      ? Math.max(54, Math.min(78, w * 0.18))
-      : Math.max(46, Math.min(72, h * 0.14));
-    const bottomReserve = portrait ? 0 : spinRadius * 2 + 24;
+      // HUD — slim 3-panel bar.
+      const hudPanelGap = 5;
+      const hudPanelW = Math.min(120, (w - 10 - hudPanelGap * (hudPanelCount - 1)) / hudPanelCount);
+      const hudPanelH = Math.max(34, Math.min(40, hudPanelW * 0.32));
+      const hudTop = titleTop + titleBarH + 4;
+      const hudCenterY = hudTop + hudPanelH / 2;
+      const hudBottom = hudTop + hudPanelH;
 
-    const reelHeightBudget = h - titleSpace - hudSpace - bottomReserve - 24;
-    const maxByHeight = reelHeightBudget / VISIBLE_ROWS;
+      // Bottom band — minimal SPIN + stepper.
+      const spinRadius = Math.max(36, Math.min(46, w * 0.115));
+      const stepperH = 34;
+      const stepperW = Math.min(135, (w - 40) / 2);
+      const bottomMargin = 10;
+      const stepperToSpinGap = 6;
+      const spinY = h - bottomMargin - spinRadius;
+      const stepperY = spinY - spinRadius - stepperToSpinGap - stepperH / 2;
+      const stepperTop = stepperY - stepperH / 2;
 
-    const maxByWidth = portrait
-      ? (w * 0.94 - (NUM_REELS - 1) * REEL_GAP) / NUM_REELS
-      : (w * 0.6 - (NUM_REELS - 1) * REEL_GAP) / NUM_REELS;
+      // Reel area — fills everything between HUD and stepper.
+      const reelTop = hudBottom + 4;
+      const reelBottom = stepperTop - 4;
+      const reelArea = Math.max(180, reelBottom - reelTop);
 
-    let symbolSize = Math.floor(Math.min(maxByWidth, maxByHeight));
-    symbolSize = Math.max(42, Math.min(symbolSize, 140));
+      const symbolSize = Math.floor(Math.min(
+        160,
+        Math.max(48, (w - 4 - (NUM_REELS - 1) * REEL_GAP) / NUM_REELS),
+      ));
+      const cellH = Math.floor(reelArea / VISIBLE_ROWS);
 
+      const blockW = NUM_REELS * symbolSize + (NUM_REELS - 1) * REEL_GAP;
+      const blockH = VISIBLE_ROWS * cellH;
+      const blockX = Math.floor((w - blockW) / 2);
+      const blockY = Math.floor(reelTop);
+
+      return {
+        w, h, portrait: true, symbolSize, cellH,
+        blockX, blockY, blockW, blockH,
+        spinRadius,
+        titleSize, titleBarH, titleBarW, titleCenterY,
+        hudPanelW, hudPanelH, hudPanelGap, hudCenterX: w / 2, hudCenterY,
+        stepperW, stepperH, stepperY,
+        spinY,
+        deckTop: 0, deckH: 0,
+      };
+    }
+
+    // Landscape — Vegas cabinet layout (Lightning Link / Cash Frenzy):
+    //   • slim branding strip on top (logo only)
+    //   • reels dominate the middle, full-width
+    //   • UNIFIED bottom control deck — slim, with large controls filling it
+    const titleSize = Math.max(18, Math.min(24, h * 0.062));
+    const titleBarH = titleSize + TITLE_BAR_PAD_V * 2;
+    const titleBarW = Math.min(w * 0.62, titleSize * 18);
+    const titleTop = 4;
+    const titleCenterY = titleTop + titleBarH / 2;
+    const titleBottom = titleTop + titleBarH;
+
+    // Bottom deck — slim, controls dominate vertically inside it.
+    // Kept thin so reels can claim the most vertical real estate.
+    const deckH = Math.max(48, Math.min(58, h * 0.15));
+    const deckTop = h - deckH - 3;
+    const deckCenterY = deckTop + deckH / 2;
+
+    // Controls scaled to the deck — SPIN intentionally pokes out for emphasis.
+    const spinRadius = Math.max(28, Math.min(36, deckH * 0.62));
+    const spinY = deckCenterY;
+
+    const stepperH = Math.max(26, Math.min(32, deckH * 0.55));
+    const stepperW = Math.max(96, Math.min(128, w * 0.15));
+    // Shift down a touch so the MAX pill (sits above stepper top) stays inside the deck.
+    const stepperY = spinY + 4;
+
+    // HUD readouts inset into deck (left side, horizontal trio).
+    const hudPanelGap = 4;
+    const hudPanelH = Math.max(42, Math.min(52, deckH * 0.88));
+    const hudPanelW = Math.max(70, Math.min(94, w * 0.112));
+    const hudCenterY = deckCenterY;
+    const sidePad = 12;
+    const hudTrioW = hudPanelCount * hudPanelW + (hudPanelCount - 1) * hudPanelGap;
+    const hudCenterX = sidePad + hudTrioW / 2;
+
+    // Reel area — clearance below title accounts for cabinet corner diamonds
+    // (CabinetFrame extends ~19px above blockY).
+    const cabinetTopOverhang = 22;
+    const reelTop = titleBottom + Math.max(2, cabinetTopOverhang - TITLE_BAR_PAD_V);
+    const reelBottom = deckTop - 4;
+    const reelAreaH = Math.max(140, reelBottom - reelTop);
+    const reelAreaW = w - 16;
+
+    // Square cells — fixed 1:1 ratio so symbols never look stretched. Pick
+    // the largest square that fits in both reel-area dimensions.
+    const cellByWidth = (reelAreaW - (NUM_REELS - 1) * REEL_GAP) / NUM_REELS;
+    const cellByHeight = reelAreaH / VISIBLE_ROWS;
+    const cellSize = Math.floor(Math.max(72, Math.min(cellByWidth, cellByHeight, 160)));
+    const symbolSize = cellSize;
+    const cellH = cellSize;
     const blockW = NUM_REELS * symbolSize + (NUM_REELS - 1) * REEL_GAP;
-    const blockH = VISIBLE_ROWS * symbolSize;
+    const blockH = VISIBLE_ROWS * cellH;
     const blockX = Math.floor((w - blockW) / 2);
-    const blockY = Math.floor(titleSpace + hudSpace + 8);
+    const blockY = Math.floor(reelTop + (reelAreaH - blockH) / 2);
 
-    return { w, h, portrait, symbolSize, blockX, blockY, blockW, blockH, spinRadius };
+    return {
+      w, h, portrait: false, symbolSize, cellH,
+      blockX, blockY, blockW, blockH,
+      spinRadius,
+      titleSize, titleBarH, titleBarW, titleCenterY,
+      hudPanelW, hudPanelH, hudPanelGap, hudCenterX, hudCenterY,
+      stepperW, stepperH, stepperY,
+      spinY,
+      deckTop, deckH,
+    };
   }
 
   private buildLayout(): void {
@@ -130,36 +251,33 @@ export class MainScene extends Phaser.Scene {
 
     new Background(this, L.w, L.h);
 
-    // Title.
-    const titleSize = L.portrait
-      ? Math.max(24, Math.min(34, Math.floor(L.w / 13)))
-      : Math.max(28, Math.min(56, Math.floor(L.w / 24)));
-    const titleY = L.portrait ? Math.max(24, L.h * 0.04) + titleSize / 2 : 56;
-    createTitle(this, L.w / 2, titleY, titleSize);
-
-    // HUD panel sizing.
-    const panelCount = 5;
-    let panelW: number;
-    let panelH: number;
-    let panelGap: number;
-    let hudCenterY: number;
-    if (L.portrait) {
-      panelGap = 4;
-      panelW = Math.min(80, (L.w - 12 - panelGap * (panelCount - 1)) / panelCount);
-      panelH = Math.max(42, Math.min(54, panelW * 0.62));
-      hudCenterY = titleY + titleSize / 2 + panelH / 2 + 8;
-    } else {
-      panelGap = 16;
-      panelW = Math.min(168, (L.w * 0.75 - panelGap * (panelCount - 1)) / panelCount);
-      panelH = Math.max(48, Math.min(64, panelW * 0.34));
-      hudCenterY = titleY + panelH / 2 + 30;
+    // Title / branding strip on top in both orientations.
+    if (L.titleSize > 0) {
+      createTitle(this, L.w / 2, L.titleCenterY, L.titleSize, { width: L.titleBarW });
     }
+
+    // Landscape: draw the unified bottom control deck before placing HUD/buttons.
+    if (!L.portrait) {
+      this.drawBottomDeck(L);
+    }
+
+    // HUD readouts — portrait: top strip centered. Landscape: inset into
+    // bottom deck, anchored on the left.
+    const hudCfg = L.portrait
+      ? {}
+      : {
+          labelFontPx: Math.max(10, Math.min(13, Math.round(L.hudPanelH * 0.19))),
+          valueFontPx: Math.max(18, Math.min(28, Math.round(L.hudPanelH * 0.42))),
+          style: 'led' as const,
+        };
     this.hud = new Hud(this, {
-      centerX: L.w / 2,
-      topY: hudCenterY - panelH / 2,
-      panelW,
-      panelH,
-      gap: panelGap,
+      centerX: L.hudCenterX,
+      topY: L.hudCenterY - L.hudPanelH / 2,
+      panelW: L.hudPanelW,
+      panelH: L.hudPanelH,
+      gap: L.hudPanelGap,
+      panels: ['CREDIT', 'TOTAL BET', 'WIN'],
+      ...hudCfg,
     });
 
     // Cabinet + reels.
@@ -168,7 +286,7 @@ export class MainScene extends Phaser.Scene {
     for (let i = 0; i < NUM_REELS; i++) {
       const strip = new ReelStrip(REEL_STRIPS[i]);
       const rx = L.blockX + i * (L.symbolSize + REEL_GAP) + L.symbolSize / 2;
-      const reel = new ReelView(this, rx, L.blockY, strip, L.symbolSize, rng);
+      const reel = new ReelView(this, rx, L.blockY, strip, L.symbolSize, rng, L.cellH);
       reel.setDepth(110);
       this.reels.push(reel);
     }
@@ -180,16 +298,15 @@ export class MainScene extends Phaser.Scene {
 
     this.paylinePanel = new PaylinePanel(
       this,
-      { blockX: L.blockX, blockY: L.blockY, symbolSize: L.symbolSize, reelGap: REEL_GAP, numReels: NUM_REELS },
+      { blockX: L.blockX, blockY: L.blockY, symbolSize: L.symbolSize, cellHeight: L.cellH, reelGap: REEL_GAP, numReels: NUM_REELS },
       [...PAYLINES],
     );
 
     // Controls area beneath reels.
-    const reelsBottom = L.blockY + L.blockH;
     if (L.portrait) {
-      this.buildPortraitControls(L, reelsBottom);
+      this.buildPortraitControls(L);
     } else {
-      this.buildLandscapeControls(L, reelsBottom);
+      this.buildLandscapeControls(L);
     }
 
     this.refreshHud(true);
@@ -207,6 +324,7 @@ export class MainScene extends Phaser.Scene {
         blockW: L.blockW,
         blockH: L.blockH,
         symbolSize: L.symbolSize,
+        cellHeight: L.cellH,
         reelGap: REEL_GAP,
       },
       creditCenter,
@@ -215,90 +333,140 @@ export class MainScene extends Phaser.Scene {
     this.paylinePanel.showPreview(this.activeLines);
   }
 
-  private buildPortraitControls(L: LayoutDims, reelsBottom: number): void {
-    const availBelow = L.h - reelsBottom;
-    const stepperW = Math.min(140, L.w * 0.36);
-    const stepperH = 44;
+  private buildPortraitControls(L: LayoutDims): void {
+    const betX = L.w / 2 - L.stepperW / 2 - 26;
+    const linesX = L.w / 2 + L.stepperW / 2 + 26;
 
-    // Two steppers side-by-side under reels (BET left, LINES right).
-    const sideMargin = Math.max(38, L.w * 0.13);
-    const stepperY = reelsBottom + Math.min(40, availBelow * 0.12);
-    const betX = sideMargin + stepperW / 2 - 18;
-    const linesX = L.w - sideMargin - stepperW / 2 + 18;
-
-    const betStepper = new Stepper(this, betX, stepperY, {
+    const betStepper = new Stepper(this, betX, L.stepperY, {
       label: 'BET',
       values: BET_OPTIONS,
       initial: this.betPerLine,
-      width: stepperW,
-      height: stepperH,
+      width: L.stepperW,
+      height: L.stepperH,
+      withMaxButton: true,
       onChange: (v) => this.setBet(v),
     });
     betStepper.setDepth(150);
 
-    const linesStepper = new Stepper(this, linesX, stepperY, {
+    const linesStepper = new Stepper(this, linesX, L.stepperY, {
       label: 'LINES',
       values: LINE_OPTIONS,
       initial: this.activeLines,
-      width: stepperW,
-      height: stepperH,
+      width: L.stepperW,
+      height: L.stepperH,
       onChange: (v) => this.setLines(v),
     });
     linesStepper.setDepth(150);
 
     // SPIN bottom-center, big.
-    const spinY = L.h - L.spinRadius - Math.max(16, L.h * 0.025);
-    this.spinButton = new SpinButton(this, L.w / 2, spinY, () => this.handleSpin(), L.spinRadius);
+    this.spinButton = new SpinButton(this, L.w / 2, L.spinY, () => this.handleSpin(), L.spinRadius);
     this.spinButton.setDepth(150);
 
     // AUTO and PAYTABLE flanking SPIN.
-    const auxOffset = L.spinRadius + Math.max(48, L.w * 0.16);
-    this.autoSpin = new AutoSpinController(this, L.w / 2 - auxOffset, spinY, {
+    const auxOffset = L.spinRadius + Math.max(46, L.w * 0.14);
+    this.autoSpin = new AutoSpinController(this, L.w / 2 - auxOffset, L.spinY, {
       spin: () => this.handleSpin(),
       isSpinning: () => this.spinning,
       canSpin: () => this.balance >= this.betPerLine * this.activeLines,
     });
-    new PaytableModal(this, L.w / 2 + auxOffset, spinY);
+    new PaytableModal(this, L.w / 2 + auxOffset, L.spinY);
   }
 
-  private buildLandscapeControls(L: LayoutDims, reelsBottom: number): void {
-    // All controls live in a single bottom row centered on SPIN.
-    const spinY = Math.max(L.h - L.spinRadius - 16, reelsBottom + L.spinRadius + 14);
-    this.spinButton = new SpinButton(this, L.w / 2, spinY, () => this.handleSpin(), L.spinRadius);
-    this.spinButton.setDepth(150);
+  private drawBottomDeck(L: LayoutDims): void {
+    const x = 4;
+    const y = L.deckTop;
+    const w = L.w - 8;
+    const h = L.deckH;
+    const r = 14;
 
-    const stepperW = Math.min(140, Math.max(110, L.w * 0.16));
-    const stepperH = Math.min(50, Math.max(42, L.spinRadius * 0.7));
-    // Side stepper x — leave a 24px gap to SPIN's outer edge + side-button radius (~18).
-    const stepperOffset = L.spinRadius + 28 + stepperW / 2 + 18;
-    const auxOffset = stepperOffset + stepperW / 2 + Math.max(56, L.w * 0.06);
+    const g = this.add.graphics();
+    g.setDepth(100); // above background, below HUD/controls
 
-    const betStepper = new Stepper(this, L.w / 2 - stepperOffset, spinY, {
+    // Outer dark gradient panel (the "cabinet" face).
+    g.fillGradientStyle(0x14142a, 0x14142a, 0x05050e, 0x05050e, 1);
+    g.fillRoundedRect(x, y, w, h, r);
+
+    // Brushed-metal top edge highlight.
+    g.fillStyle(0xffd700, 0.06);
+    g.fillRoundedRect(x, y, w, 8, { tl: r, tr: r, bl: 0, br: 0 });
+
+    // Gold cabinet trim — outer + inset rings.
+    g.lineStyle(2, 0xffd700, 1);
+    g.strokeRoundedRect(x, y, w, h, r);
+    g.lineStyle(1, 0xffd700, 0.4);
+    g.strokeRoundedRect(x + 3, y + 3, w - 6, h - 6, r - 2);
+
+    // Subtle vertical separators between functional zones.
+    const sepColor = 0xffd700;
+    const sepAlpha = 0.18;
+    g.lineStyle(1, sepColor, sepAlpha);
+    // Left zone (HUD readouts) ends roughly after the HUD trio.
+    const hudRightEdge = L.hudCenterX + (3 * L.hudPanelW + 2 * L.hudPanelGap) / 2 + 8;
+    g.beginPath();
+    g.moveTo(hudRightEdge, y + 8);
+    g.lineTo(hudRightEdge, y + h - 8);
+    g.strokePath();
+
+    // Decorative corner rivets.
+    g.fillStyle(0xffd700, 0.55);
+    const rv = 2.4;
+    g.fillCircle(x + 9, y + 9, rv);
+    g.fillCircle(x + w - 9, y + 9, rv);
+    g.fillCircle(x + 9, y + h - 9, rv);
+    g.fillCircle(x + w - 9, y + h - 9, rv);
+  }
+
+  private buildLandscapeControls(L: LayoutDims): void {
+    // Right-anchored: PAYTABLE (corner) → SPIN (big) → AUTO.
+    // Left-anchored: HUD trio (already placed) → BET → LINES.
+    const sideMargin = 12;
+    const paytableR = 22;
+    const paytableX = L.w - sideMargin - paytableR;
+    const spinX = paytableX - paytableR - 14 - L.spinRadius;
+    const autoX = spinX - L.spinRadius - 38;
+
+    // BET/LINES live in the middle of the deck, between HUD trio and AUTO.
+    const hudRightEdge = L.hudCenterX + (3 * L.hudPanelW + 2 * L.hudPanelGap) / 2;
+    const stepperZoneStart = hudRightEdge + 16; // breathing space after divider
+    const stepperZoneEnd = autoX - L.spinRadius / 2 - 18;
+    const stepperGap = 24;
+    const stepperZoneW = stepperZoneEnd - stepperZoneStart;
+    const stepperPair = L.stepperW * 2 + stepperGap;
+    const stepperPairStart = stepperZoneStart + (stepperZoneW - stepperPair) / 2;
+    const betX = stepperPairStart + L.stepperW / 2;
+    const linesX = betX + L.stepperW + stepperGap;
+
+    const betStepper = new Stepper(this, betX, L.stepperY, {
       label: 'BET',
       values: BET_OPTIONS,
       initial: this.betPerLine,
-      width: stepperW,
-      height: stepperH,
+      width: L.stepperW,
+      height: L.stepperH,
+      withMaxButton: true,
       onChange: (v) => this.setBet(v),
     });
     betStepper.setDepth(150);
 
-    const linesStepper = new Stepper(this, L.w / 2 + stepperOffset, spinY, {
+    const linesStepper = new Stepper(this, linesX, L.stepperY, {
       label: 'LINES',
       values: LINE_OPTIONS,
       initial: this.activeLines,
-      width: stepperW,
-      height: stepperH,
+      width: L.stepperW,
+      height: L.stepperH,
       onChange: (v) => this.setLines(v),
     });
     linesStepper.setDepth(150);
 
-    this.autoSpin = new AutoSpinController(this, L.w / 2 - auxOffset, spinY, {
+    this.autoSpin = new AutoSpinController(this, autoX, L.spinY, {
       spin: () => this.handleSpin(),
       isSpinning: () => this.spinning,
       canSpin: () => this.balance >= this.betPerLine * this.activeLines,
     });
-    new PaytableModal(this, L.w / 2 + auxOffset, spinY);
+
+    this.spinButton = new SpinButton(this, spinX, L.spinY, () => this.handleSpin(), L.spinRadius);
+    this.spinButton.setDepth(150);
+
+    new PaytableModal(this, paytableX, L.spinY);
   }
 
   // ---------- state ----------
@@ -336,23 +504,29 @@ export class MainScene extends Phaser.Scene {
   // ---------- spin ----------
 
   private handleSpin(): void {
-    if (this.spinning) return;
+    if (this.spinning) {
+      this.quickStopAllReels();
+      return;
+    }
     const totalBet = this.betPerLine * this.activeLines;
-    if (this.balance < totalBet) {
+    const isFreeSpin = this.freeSpinsRemaining > 0;
+    if (!isFreeSpin && this.balance < totalBet) {
       this.indicateInsufficient();
       return;
     }
 
     this.spinning = true;
-    this.spinButton.setDisabled(true);
+    this.spinButton.setSpinningMode(true);
     this.paylinePanel.clearWins();
 
     audio.play('spin-start');
     audio.play('reel-loop', { loop: true, volume: 0.7 });
 
-    Balance.deduct(totalBet);
-    this.balance = Balance.getBalance();
-    this.hud.countTo('CREDIT', this.balance, 400);
+    if (!isFreeSpin) {
+      Balance.deduct(totalBet);
+      this.balance = Balance.getBalance();
+      this.hud.countTo('CREDIT', this.balance, 400);
+    }
 
     this.lastWin = 0;
     this.hud.setValue('WIN', 0);
@@ -379,13 +553,24 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
+  private quickStopAllReels(): void {
+    for (let i = 0; i < this.reels.length; i++) {
+      const reel = this.reels[i];
+      if (!reel.isSpinning()) continue;
+      this.time.delayedCall(i * 60, () => reel.snapToStop());
+    }
+  }
+
   private onAllReelsStopped(): void {
     const result: string[][] = this.reels.map((r) => r.getVisibleSymbols());
-    const wins: WinLine[] = evaluate(result, [...PAYLINES], this.activeLines, this.betPerLine);
+    const rawWins: WinLine[] = evaluate(result, [...PAYLINES], this.activeLines, this.betPerLine);
+    const isFreeSpin = this.freeSpinsRemaining > 0;
+    const multiplier = isFreeSpin ? this.FREE_SPIN_MULTIPLIER : 1;
+    const wins: WinLine[] =
+      multiplier === 1
+        ? rawWins
+        : rawWins.map((w) => ({ ...w, payout: w.payout * multiplier }));
     const winSum = totalWin(wins);
-
-    console.log('[spin] result =', result);
-    console.log('[spin] wins =', wins, 'totalWin =', winSum);
 
     const totalBet = this.betPerLine * this.activeLines;
     if (wins.length > 0) {
@@ -393,36 +578,52 @@ export class MainScene extends Phaser.Scene {
       Balance.add(winSum);
       this.balance = Balance.getBalance();
       this.lastWin = winSum;
+      if (isFreeSpin) this.freeSpinsWinSoFar += winSum;
 
-      const isBig = winSum >= totalBet * 10;
-      const isMedium = !isBig && (winSum >= totalBet * 3 || wins.length >= 3);
-      const countDuration = isBig ? 1400 : 1000;
+      const isMega = winSum >= totalBet * 25;
+      const isBig = !isMega && winSum >= totalBet * 10;
+      const isMedium = !isBig && !isMega && (winSum >= totalBet * 3 || wins.length >= 3);
+      const countDuration = isMega ? 1800 : isBig ? 1400 : 1000;
       this.hud.countTo('WIN', winSum, countDuration);
       this.hud.countTo('CREDIT', this.balance, countDuration);
       this.hud.pulseValue('WIN');
       this.hud.pulsePanel('CREDIT');
       this.hud.pulsePanel('WIN');
 
-      if (isBig) audio.play('win-big');
+      if (isMega || isBig) audio.play('win-big');
       else if (isMedium) audio.play('win-medium');
       else audio.play('win-small');
 
       this.winFx.centerBadge(winSum);
-      this.winFx.coinBurst(isBig ? 40 : 28);
+      this.winFx.coinBurst(isMega ? 56 : isBig ? 40 : 28);
 
-      if (isBig) {
+      if (isBig || isMega) {
         this.playBigWin(winSum);
         this.winFx.confettiShower();
       }
+      if (isMega) {
+        this.winFx.playMegaWin(winSum);
+      }
 
       window.dispatchEvent(
-        new CustomEvent('slot:win', { detail: { amount: winSum, lines: wins.length, isBig } }),
+        new CustomEvent('slot:win', { detail: { amount: winSum, lines: wins.length, isBig: isBig || isMega } }),
       );
     }
 
+    // Scatter / free-spin trigger.
+    const scatters = countScatters(result);
+    const awarded = freeSpinsAwarded(scatters);
+
     this.spinning = false;
-    this.spinButton.setDisabled(false);
-    this.autoSpin.onSpinComplete();
+    this.spinButton.setSpinningMode(false);
+
+    if (awarded > 0) {
+      this.triggerFreeSpins(scatters, awarded);
+    } else if (isFreeSpin) {
+      this.advanceFreeSpins();
+    } else {
+      this.autoSpin.onSpinComplete();
+    }
 
     this.paylinePanel.showPreview(this.activeLines);
   }
@@ -451,6 +652,111 @@ export class MainScene extends Phaser.Scene {
       onComplete: () => t.destroy(),
     });
     this.autoSpin.stop();
+  }
+
+  // ---------- free spins ----------
+
+  private triggerFreeSpins(scatters: number, awarded: number): void {
+    const wasFreeSpin = this.freeSpinsRemaining > 0;
+    this.freeSpinsRemaining += awarded;
+    this.freeSpinsTotal += awarded;
+    if (!wasFreeSpin) this.freeSpinsWinSoFar = 0;
+    this.autoSpin.stop();
+    audio.play('win-big');
+    this.showFreeSpinBadge();
+    this.updateFreeSpinBadge();
+    this.winFx.playFreeSpinsTrigger(scatters, awarded, () => {
+      this.freeSpinTimer = this.time.delayedCall(450, () => this.runFreeSpinLoop());
+    });
+  }
+
+  private advanceFreeSpins(): void {
+    this.freeSpinsRemaining -= 1;
+    this.updateFreeSpinBadge();
+    if (this.freeSpinsRemaining <= 0) {
+      const total = this.freeSpinsWinSoFar;
+      this.freeSpinsTotal = 0;
+      this.freeSpinsWinSoFar = 0;
+      this.hideFreeSpinBadge();
+      this.winFx.playFreeSpinsEnd(total);
+      return;
+    }
+    this.freeSpinTimer = this.time.delayedCall(900, () => this.runFreeSpinLoop());
+  }
+
+  private runFreeSpinLoop(): void {
+    if (this.freeSpinsRemaining <= 0) return;
+    if (this.spinning) {
+      this.freeSpinTimer = this.time.delayedCall(200, () => this.runFreeSpinLoop());
+      return;
+    }
+    this.handleSpin();
+  }
+
+  private showFreeSpinBadge(): void {
+    if (this.freeSpinBadge) return;
+    const x = this.scale.width / 2;
+    const y = Math.max(this.blockY - 18, 28);
+    const w = 220;
+    const h = 38;
+    const wrap = this.add.container(x, y);
+    wrap.setDepth(180);
+    const g = this.add.graphics();
+    g.fillStyle(0x002233, 0.92);
+    g.fillRoundedRect(-w / 2, -h / 2, w, h, 12);
+    g.lineStyle(2, 0x44eaff, 1);
+    g.strokeRoundedRect(-w / 2, -h / 2, w, h, 12);
+    g.lineStyle(1, 0x44eaff, 0.4);
+    g.strokeRoundedRect(-w / 2 + 3, -h / 2 + 3, w - 6, h - 6, 10);
+    wrap.add(g);
+    const t = this.add
+      .text(0, 0, '', {
+        fontFamily: '"Arial Black", Arial, sans-serif',
+        fontSize: '17px',
+        fontStyle: 'bold',
+        color: '#44eaff',
+      })
+      .setOrigin(0.5);
+    t.setShadow(0, 0, '#44eaff', 8, false, true);
+    wrap.add(t);
+    wrap.setAlpha(0);
+    wrap.setScale(0.6);
+    this.tweens.add({ targets: wrap, alpha: 1, scale: 1, duration: 240, ease: 'Back.Out' });
+    this.tweens.add({
+      targets: wrap,
+      scaleX: 1.04,
+      scaleY: 1.04,
+      duration: 900,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.InOut',
+    });
+    this.freeSpinBadge = wrap;
+    this.freeSpinBadgeText = t;
+  }
+
+  private updateFreeSpinBadge(): void {
+    if (!this.freeSpinBadgeText) return;
+    const used = this.freeSpinsTotal - this.freeSpinsRemaining;
+    this.freeSpinBadgeText.setText(
+      `FREE SPIN  ${used}/${this.freeSpinsTotal}   ×${this.FREE_SPIN_MULTIPLIER}`,
+    );
+  }
+
+  private hideFreeSpinBadge(): void {
+    if (!this.freeSpinBadge) return;
+    const wrap = this.freeSpinBadge;
+    this.freeSpinBadge = undefined;
+    this.freeSpinBadgeText = undefined;
+    this.tweens.killTweensOf(wrap);
+    this.tweens.add({
+      targets: wrap,
+      alpha: 0,
+      scale: 0.6,
+      duration: 240,
+      ease: 'Sine.In',
+      onComplete: () => wrap.destroy(),
+    });
   }
 
   private playBigWin(amount: number): void {

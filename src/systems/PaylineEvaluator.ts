@@ -71,3 +71,25 @@ export function totalWin(wins: WinLine[]): number {
   for (const w of wins) sum += w.payout;
   return sum;
 }
+
+/** Count scatter symbols anywhere on the visible 5x3 grid. */
+export function countScatters(
+  reelResult: SymbolId[][],
+  scatterId: SymbolId = 'SCATTER',
+): number {
+  let n = 0;
+  for (const col of reelResult) {
+    for (const sym of col) {
+      if (sym === scatterId) n++;
+    }
+  }
+  return n;
+}
+
+/** Map scatter count to free spins awarded. 3=10, 4=15, 5+=20. */
+export function freeSpinsAwarded(scatterCount: number): number {
+  if (scatterCount >= 5) return 20;
+  if (scatterCount === 4) return 15;
+  if (scatterCount === 3) return 10;
+  return 0;
+}

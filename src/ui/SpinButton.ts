@@ -232,6 +232,34 @@ export class SpinButton extends Phaser.GameObjects.Container {
       this.bodyGroup.setAlpha(1);
       this.label.setAlpha(1);
       this.label.setText('SPIN');
+      this.label.setColor('#ffffff');
+      this.bodyGroup.setScale(1);
+      this.startGlowTween();
+      this.startBreath();
+    }
+  }
+
+  /**
+   * Active-spin mode — button stays clickable as a "STOP" trigger so the
+   * player can shorten the spin animation. Visually distinct from disabled.
+   */
+  setSpinningMode(spinning: boolean): void {
+    if (spinning) {
+      this.disabled = false;
+      this.label.setText('STOP');
+      this.label.setColor('#ff5566');
+      this.label.setAlpha(1);
+      this.bodyGroup.setAlpha(1);
+      this.glow.setAlpha(0);
+      this.glowTween?.stop();
+      this.glowTween = undefined;
+      this.breathTween?.stop();
+      this.breathTween = undefined;
+    } else {
+      this.label.setText('SPIN');
+      this.label.setColor('#ffffff');
+      this.label.setAlpha(1);
+      this.bodyGroup.setAlpha(1);
       this.bodyGroup.setScale(1);
       this.startGlowTween();
       this.startBreath();

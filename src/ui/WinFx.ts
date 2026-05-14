@@ -11,6 +11,7 @@ interface ReelGeometry {
   readonly blockW: number;
   readonly blockH: number;
   readonly symbolSize: number;
+  readonly cellHeight?: number;
   readonly reelGap: number;
 }
 
@@ -58,12 +59,12 @@ export class WinFx {
    * Drifts up 60px while fading.
    */
   public floatLineAmount(win: WinLine): void {
-    const { blockX, symbolSize, reelGap } = this.geom;
+    const { blockX, symbolSize, reelGap, cellHeight } = this.geom;
+    const ch = cellHeight ?? symbolSize;
     const lastCol = win.cells[win.cells.length - 1][0];
     const lastRow = win.cells[win.cells.length - 1][1];
     const x = blockX + lastCol * (symbolSize + reelGap) + symbolSize + 12;
-    const y =
-      this.geom.blockY + lastRow * symbolSize + symbolSize / 2;
+    const y = this.geom.blockY + lastRow * ch + ch / 2;
 
     const t = this.scene.add
       .text(x, y, `+${win.payout}`, {
@@ -210,6 +211,245 @@ export class WinFx {
         ease: 'Linear',
       });
     }
+  }
+
+  /**
+   * Big "FREE SPINS!" trigger banner. Plays when 3+ scatters land.
+   * Holds ~1.6s before the caller starts the auto-spin loop.
+   */
+  public playFreeSpinsTrigger(scatters: number, awarded: number, onDone?: () => void): void {
+    const cx = this.geom.blockX + this.geom.blockW / 2;
+    const cy = this.geom.blockY + this.geom.blockH / 2;
+    const wrap = this.scene.add.container(cx, cy);
+    wrap.setDepth(260);
+
+    const main = this.scene.add
+      .text(0, -22, 'FREE SPINS!', {
+        fontFamily: '"Impact", "Arial Black", sans-serif',
+        fontSize: '64px',
+        fontStyle: 'bold',
+        color: '#44eaff',
+        stroke: '#001a22',
+        strokeThickness: 8,
+      })
+      .setOrigin(0.5);
+    main.setShadow(0, 4, '#000000', 12, false, true);
+    wrap.add(main);
+
+    const sub = this.scene.add
+      .text(0, 36, `${scatters}× SCATTER  →  +${awarded} SPINS`, {
+        fontFamily: '"Arial Black", Arial, sans-serif',
+        fontSize: '26px',
+        fontStyle: 'bold',
+        color: '#ffd700',
+        stroke: '#1a0a00',
+        strokeThickness: 5,
+      })
+      .setOrigin(0.5);
+    sub.setShadow(0, 2, '#000000', 6, false, true);
+    wrap.add(sub);
+
+    wrap.setScale(0.3);
+    wrap.setAlpha(0);
+    this.scene.tweens.add({
+      targets: wrap,
+      alpha: 1,
+      scale: 1.1,
+      duration: 360,
+      ease: 'Back.Out',
+    });
+    this.scene.tweens.add({
+      targets: wrap,
+      scale: 1.0,
+      duration: 200,
+      delay: 360,
+      ease: 'Sine.Out',
+    });
+    this.scene.tweens.add({
+      targets: wrap,
+      alpha: 0,
+      duration: 320,
+      delay: 1500,
+      ease: 'Sine.In',
+      onComplete: () => {
+        wrap.destroy();
+        onDone?.();
+      },
+    });
+
+    this.cameras().shake(280, 0.006);
+    this.confettiShower();
+  }
+
+  /** "FREE SPINS COMPLETE" summary banner with total free-spin winnings. */
+  public playFreeSpinsEnd(totalWin: number, onDone?: () => void): void {
+    const cx = this.geom.blockX + this.geom.blockW / 2;
+    const cy = this.geom.blockY + this.geom.blockH / 2;
+    const wrap = this.scene.add.container(cx, cy);
+    wrap.setDepth(260);
+
+    const top = this.scene.add
+      .text(0, -28, 'FREE SPINS COMPLETE', {
+        fontFamily: '"Arial Black", Arial, sans-serif',
+        fontSize: '28px',
+        fontStyle: 'bold',
+        color: '#44eaff',
+        stroke: '#001a22',
+        strokeThickness: 5,
+      })
+      .setOrigin(0.5);
+    top.setShadow(0, 2, '#000000', 6, false, true);
+    wrap.add(top);
+
+    const big = this.scene.add
+      .text(0, 24, `TOTAL +${totalWin}`, {
+        fontFamily: '"Impact", "Arial Black", sans-serif',
+        fontSize: '56px',
+        fontStyle: 'bold',
+        color: '#ffd700',
+        stroke: '#1a0a00',
+        strokeThickness: 7,
+      })
+      .setOrigin(0.5);
+    big.setShadow(0, 4, '#000000', 10, false, true);
+    wrap.add(big);
+
+    wrap.setScale(0.4);
+    wrap.setAlpha(0);
+    this.scene.tweens.add({
+      targets: wrap,
+      alpha: 1,
+      scale: 1.05,
+      duration: 320,
+      ease: 'Back.Out',
+    });
+    this.scene.tweens.add({
+      targets: wrap,
+      alpha: 0,
+      duration: 360,
+      delay: 1900,
+      ease: 'Sine.In',
+      onComplete: () => {
+        wrap.destroy();
+        onDone?.();
+      },
+    });
+  }
+
+  /**
+   * MEGA WIN banner — bigger, slower than centerBadge. For wins ≥ 25× total bet.
+   * Letter-by-letter scale-in then a stamping flash on the amount.
+   */
+  public playMegaWin(amount: number, onDone?: () => void): void {
+    const cx = this.geom.blockX + this.geom.blockW / 2;
+    const cy = this.geom.blockY + this.geom.blockH / 2;
+    const wrap = this.scene.add.container(cx, cy);
+    wrap.setDepth(265);
+
+    const letters = 'MEGA WIN'.split('');
+    const letterPx = Math.max(56, Math.floor(this.geom.symbolSize * 0.95));
+    const letterObjs: Phaser.GameObjects.Text[] = [];
+    let cursorX = 0;
+
+    // Measure first to center the row.
+    const tempW: number[] = [];
+    let totalW = 0;
+    for (const ch of letters) {
+      const m = this.scene.add
+        .text(0, 0, ch, {
+          fontFamily: '"Impact", "Arial Black", sans-serif',
+          fontSize: `${letterPx}px`,
+          fontStyle: 'bold',
+        })
+        .setOrigin(0, 0.5);
+      tempW.push(m.width);
+      totalW += m.width;
+      m.destroy();
+    }
+    cursorX = -totalW / 2;
+
+    for (let i = 0; i < letters.length; i++) {
+      const t = this.scene.add
+        .text(cursorX, -letterPx * 0.4, letters[i], {
+          fontFamily: '"Impact", "Arial Black", sans-serif',
+          fontSize: `${letterPx}px`,
+          fontStyle: 'bold',
+          color: '#ffd700',
+          stroke: '#1a0a00',
+          strokeThickness: Math.max(6, Math.floor(letterPx * 0.13)),
+        })
+        .setOrigin(0, 0.5);
+      t.setShadow(0, 5, '#000000', 12, false, true);
+      t.setScale(0);
+      t.setAlpha(0);
+      cursorX += tempW[i];
+      wrap.add(t);
+      letterObjs.push(t);
+      this.scene.tweens.add({
+        targets: t,
+        scale: 1,
+        alpha: 1,
+        duration: 220,
+        delay: i * 80,
+        ease: 'Back.Out',
+      });
+    }
+
+    const amtPx = Math.max(40, Math.floor(letterPx * 0.7));
+    const amt = this.scene.add
+      .text(0, letterPx * 0.55, `+${amount}`, {
+        fontFamily: '"Impact", "Arial Black", sans-serif',
+        fontSize: `${amtPx}px`,
+        fontStyle: 'bold',
+        color: '#ffffff',
+        stroke: '#1a0a00',
+        strokeThickness: Math.max(5, Math.floor(amtPx * 0.12)),
+      })
+      .setOrigin(0.5);
+    amt.setShadow(0, 4, '#000000', 10, false, true);
+    amt.setScale(0);
+    wrap.add(amt);
+    this.scene.tweens.add({
+      targets: amt,
+      scale: 1,
+      duration: 280,
+      delay: letters.length * 80 + 80,
+      ease: 'Back.Out',
+    });
+
+    // Sweep highlight across the letters.
+    const sweepDelay = letters.length * 80 + 240;
+    this.scene.time.delayedCall(sweepDelay, () => {
+      for (let i = 0; i < letterObjs.length; i++) {
+        const t = letterObjs[i];
+        this.scene.tweens.add({
+          targets: t,
+          scale: { from: 1, to: 1.18 },
+          duration: 180,
+          delay: i * 60,
+          yoyo: true,
+          ease: 'Sine.InOut',
+        });
+      }
+    });
+
+    this.cameras().shake(420, 0.01);
+
+    this.scene.tweens.add({
+      targets: wrap,
+      alpha: { from: 1, to: 0 },
+      duration: 460,
+      delay: 2400,
+      ease: 'Sine.In',
+      onComplete: () => {
+        wrap.destroy();
+        onDone?.();
+      },
+    });
+  }
+
+  private cameras(): Phaser.Cameras.Scene2D.Camera {
+    return this.scene.cameras.main;
   }
 
   /**

@@ -6,6 +6,7 @@ interface Geometry {
   readonly blockX: number;
   readonly blockY: number;
   readonly symbolSize: number;
+  readonly cellHeight?: number;
   readonly reelGap: number;
   readonly numReels: number;
 }
@@ -44,8 +45,9 @@ export class PaylinePanel {
   }
 
   private rowCenterY(row: number): number {
-    const { blockY, symbolSize } = this.geometry;
-    return blockY + row * symbolSize + symbolSize / 2;
+    const { blockY, symbolSize, cellHeight } = this.geometry;
+    const ch = cellHeight ?? symbolSize;
+    return blockY + row * ch + ch / 2;
   }
 
   /** Faint dotted preview of the first `activeLineCount` paylines. */
@@ -169,7 +171,8 @@ export class PaylinePanel {
     this.winG.strokePath();
 
     // Cell glow rings on each matching [col,row].
-    const { symbolSize } = this.geometry;
+    const { symbolSize, cellHeight } = this.geometry;
+    const ch = cellHeight ?? symbolSize;
     for (const [col, row] of win.cells) {
       const cx = this.colCenterX(col);
       const cy = this.rowCenterY(row);
@@ -179,17 +182,17 @@ export class PaylinePanel {
       ring.lineStyle(4, win.color, 1);
       ring.strokeRoundedRect(
         cx - symbolSize / 2 + 4,
-        cy - symbolSize / 2 + 4,
+        cy - ch / 2 + 4,
         symbolSize - 8,
-        symbolSize - 8,
+        ch - 8,
         10,
       );
       ring.fillStyle(win.color, 0.18);
       ring.fillRoundedRect(
         cx - symbolSize / 2 + 4,
-        cy - symbolSize / 2 + 4,
+        cy - ch / 2 + 4,
         symbolSize - 8,
-        symbolSize - 8,
+        ch - 8,
         10,
       );
       this.cellGlows.push(ring);

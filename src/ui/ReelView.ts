@@ -15,6 +15,7 @@ interface SymbolCell {
 export class ReelView extends Phaser.GameObjects.Container {
   public readonly strip: ReelStrip;
   public readonly symbolSize: number;
+  public readonly cellH: number;
   public readonly visibleRows: number = VISIBLE_ROWS;
   public readonly cellsContainer: Phaser.GameObjects.Container;
   private readonly cells: SymbolCell[] = [];
@@ -22,6 +23,10 @@ export class ReelView extends Phaser.GameObjects.Container {
   // Continuous strip-index of the top visible row (integer when aligned).
   private topStripIndex = 0;
   private spinning = false;
+  private spinTween?: Phaser.Tweens.Tween;
+  private pendingTarget = 0;
+  private pendingOnComplete?: () => void;
+  private completed = false;
 
   constructor(
     scene: Phaser.Scene,
@@ -30,18 +35,20 @@ export class ReelView extends Phaser.GameObjects.Container {
     strip: ReelStrip,
     symbolSize: number,
     _rng: RNG,
+    cellHeight?: number,
   ) {
     super(scene, x, y);
     this.strip = strip;
     this.symbolSize = symbolSize;
+    this.cellH = cellHeight ?? symbolSize;
 
     // Cell backgrounds (3 visible).
     const bg = scene.add.graphics();
     const cx = -symbolSize / 2 + 3;
     const cw = symbolSize - 6;
-    const ch = symbolSize - 6;
+    const ch = this.cellH - 6;
     for (let i = 0; i < VISIBLE_ROWS; i++) {
-      const cy = i * symbolSize + 3;
+      const cy = i * this.cellH + 3;
       // Vertical gradient fill.
       bg.fillGradientStyle(0x161628, 0x161628, 0x08081a, 0x08081a, 1);
       bg.fillRoundedRect(cx, cy, cw, ch, 8);
@@ -61,7 +68,7 @@ export class ReelView extends Phaser.GameObjects.Container {
     const shadow = scene.add.graphics();
     const sx = -symbolSize / 2;
     const sw = symbolSize;
-    const sh = symbolSize * VISIBLE_ROWS;
+    const sh = this.cellH * VISIBLE_ROWS;
     // Top vignette: dark fading down.
     shadow.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.55, 0.55, 0, 0);
     shadow.fillRect(sx, 0, sw, Math.floor(sh * 0.22));
@@ -78,8 +85,9 @@ export class ReelView extends Phaser.GameObjects.Container {
     this.add(this.cellsContainer);
     this.add(shadow);
 
-    const fontSize = Math.floor(symbolSize * 0.55);
-    const imgSize = Math.floor(symbolSize * 0.82);
+    const innerSize = Math.min(symbolSize, this.cellH);
+    const fontSize = Math.floor(innerSize * 0.62);
+    const imgSize = Math.floor(innerSize * 0.96);
     for (let k = 0; k < N_DISPLAY; k++) {
       const img = scene.add
         .image(0, 0, '__MISSING')
@@ -106,7 +114,7 @@ export class ReelView extends Phaser.GameObjects.Container {
     // Geometry mask covers exactly the 3 visible rows in world space.
     const maskGfx = scene.make.graphics({ x: 0, y: 0 }, false);
     maskGfx.fillStyle(0xffffff);
-    maskGfx.fillRect(x - symbolSize / 2, y, symbolSize, symbolSize * VISIBLE_ROWS);
+    maskGfx.fillRect(x - symbolSize / 2, y, symbolSize, this.cellH * VISIBLE_ROWS);
     this.setMask(maskGfx.createGeometryMask());
 
     scene.add.existing(this);
@@ -154,12 +162,10 @@ export class ReelView extends Phaser.GameObjects.Container {
 
       if (this.cellStripIndex[k] !== normIdx) {
         const def = getSymbol(this.strip.getSymbolAt(stripIdx));
+        const inner = Math.floor(Math.min(this.symbolSize, this.cellH) * 0.96);
         if (this.scene.textures.exists(def.key)) {
           cell.image.setTexture(def.key);
-          cell.image.setDisplaySize(
-            Math.floor(this.symbolSize * 0.82),
-            Math.floor(this.symbolSize * 0.82),
-          );
+          cell.image.setDisplaySize(inner, inner);
           cell.image.setVisible(true);
           cell.text.setVisible(false);
         } else {
@@ -171,7 +177,7 @@ export class ReelView extends Phaser.GameObjects.Container {
         this.cellStripIndex[k] = normIdx;
       }
 
-      const y = p * this.symbolSize + frac * this.symbolSize + this.symbolSize / 2;
+      const y = p * this.cellH + frac * this.cellH + this.cellH / 2;
       cell.image.setY(y);
       cell.text.setY(y);
     }
@@ -183,6 +189,9 @@ export class ReelView extends Phaser.GameObjects.Container {
       return;
     }
     this.spinning = true;
+    this.completed = false;
+    this.pendingTarget = targetStopIndex;
+    this.pendingOnComplete = onComplete;
 
     const n = this.strip.length;
     const startTop = Math.round(this.topStripIndex);
@@ -193,7 +202,7 @@ export class ReelView extends Phaser.GameObjects.Container {
     const endTop = startTop - totalDelta;
 
     const state = { v: 0 };
-    this.scene.tweens.add({
+    this.spinTween = this.scene.tweens.add({
       targets: state,
       v: 1,
       duration: durationMs,
@@ -202,12 +211,34 @@ export class ReelView extends Phaser.GameObjects.Container {
         this.topStripIndex = startTop + (endTop - startTop) * state.v;
         this.refresh();
       },
-      onComplete: () => {
-        this.topStripIndex = ((targetStopIndex % n) + n) % n;
-        this.refresh();
-        this.spinning = false;
-        onComplete();
-      },
+      onComplete: () => this.finishSpin(),
     });
+  }
+
+  /**
+   * Force the spin to its final symbol immediately. Safe to call mid-spin or
+   * post-spin (no-op if already finished). Fires the original onComplete.
+   */
+  snapToStop(): void {
+    if (!this.spinning || this.completed) return;
+    this.spinTween?.stop();
+    this.spinTween = undefined;
+    this.finishSpin();
+  }
+
+  isSpinning(): boolean {
+    return this.spinning && !this.completed;
+  }
+
+  private finishSpin(): void {
+    if (this.completed) return;
+    this.completed = true;
+    const n = this.strip.length;
+    this.topStripIndex = ((this.pendingTarget % n) + n) % n;
+    this.refresh();
+    this.spinning = false;
+    const cb = this.pendingOnComplete;
+    this.pendingOnComplete = undefined;
+    cb?.();
   }
 }
