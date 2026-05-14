@@ -185,24 +185,24 @@ export class MainScene extends Phaser.Scene {
     const titleCenterY = titleTop + titleBarH / 2;
     const titleBottom = titleTop + titleBarH;
 
-    // Bottom deck — slim, controls dominate vertically inside it.
-    // Kept thin so reels can claim the most vertical real estate.
-    const deckH = Math.max(48, Math.min(58, h * 0.15));
+    // Bottom deck — minimal footprint. The deck is just an ornamental gold
+    // wire + soft wash; tap targets stay sized for thumbs, not the deck.
+    const deckH = Math.max(34, Math.min(42, h * 0.11));
     const deckTop = h - deckH - 3;
     const deckCenterY = deckTop + deckH / 2;
 
-    // Controls scaled to the deck — SPIN intentionally pokes out for emphasis.
-    const spinRadius = Math.max(28, Math.min(36, deckH * 0.62));
+    // SPIN intentionally pokes well above the deck for emphasis.
+    const spinRadius = Math.max(26, Math.min(32, h * 0.082));
     const spinY = deckCenterY;
 
-    const stepperH = Math.max(26, Math.min(32, deckH * 0.55));
+    const stepperH = Math.max(24, Math.min(28, deckH * 0.66));
     const stepperW = Math.max(96, Math.min(128, w * 0.15));
-    // Shift down a touch so the MAX pill (sits above stepper top) stays inside the deck.
-    const stepperY = spinY + 4;
+    // Stepper sits a hair below center so its top-tab label has room above.
+    const stepperY = spinY + 2;
 
     // HUD readouts inset into deck (left side, horizontal trio).
     const hudPanelGap = 4;
-    const hudPanelH = Math.max(42, Math.min(52, deckH * 0.88));
+    const hudPanelH = Math.max(34, Math.min(40, deckH * 0.94));
     const hudPanelW = Math.max(70, Math.min(94, w * 0.112));
     const hudCenterY = deckCenterY;
     const sidePad = 12;
@@ -373,47 +373,66 @@ export class MainScene extends Phaser.Scene {
   }
 
   private drawBottomDeck(L: LayoutDims): void {
+    // Lightweight footer: a 3D-bevel gold wire across the top edge, ruby
+    // diamond endcaps that echo the title-bar ornaments, and a gentle dark
+    // wash that fades into the background. Controls carry their own bezels.
     const x = 4;
     const y = L.deckTop;
     const w = L.w - 8;
     const h = L.deckH;
-    const r = 14;
 
-    const g = this.add.graphics();
-    g.setDepth(100); // above background, below HUD/controls
+    // Soft dark wash — fades top→bottom so the deck dissolves into the bg.
+    const wash = this.add.graphics();
+    wash.setDepth(99);
+    wash.fillGradientStyle(0x0a0a18, 0x0a0a18, 0x0a0a18, 0x0a0a18, 0, 0, 0.32, 0.10);
+    wash.fillRect(x, y + 3, w, h - 3);
 
-    // Outer dark gradient panel (the "cabinet" face).
-    g.fillGradientStyle(0x14142a, 0x14142a, 0x05050e, 0x05050e, 1);
-    g.fillRoundedRect(x, y, w, h, r);
+    // 3-line bevel rope — bright highlight, mid gold, deep shadow.
+    const ropeStart = x + 16;
+    const ropeEnd = x + w - 16;
+    const rope = this.add.graphics();
+    rope.setDepth(101);
+    rope.lineStyle(1, 0xfff4b3, 0.95);
+    rope.lineBetween(ropeStart, y, ropeEnd, y);
+    rope.lineStyle(1, 0xffd700, 1);
+    rope.lineBetween(ropeStart, y + 1, ropeEnd, y + 1);
+    rope.lineStyle(1, 0x6a4a08, 0.85);
+    rope.lineBetween(ropeStart, y + 2, ropeEnd, y + 2);
 
-    // Brushed-metal top edge highlight.
-    g.fillStyle(0xffd700, 0.06);
-    g.fillRoundedRect(x, y, w, 8, { tl: r, tr: r, bl: 0, br: 0 });
+    // Soft gold inner glow just below the rope (additive).
+    const glow = this.add.graphics();
+    glow.setDepth(100);
+    glow.fillStyle(0xffd700, 0.18);
+    glow.fillRect(ropeStart, y + 3, ropeEnd - ropeStart, 1);
+    glow.fillStyle(0xffd700, 0.10);
+    glow.fillRect(ropeStart, y + 4, ropeEnd - ropeStart, 1);
+    glow.setBlendMode(Phaser.BlendModes.ADD);
 
-    // Gold cabinet trim — outer + inset rings.
-    g.lineStyle(2, 0xffd700, 1);
-    g.strokeRoundedRect(x, y, w, h, r);
-    g.lineStyle(1, 0xffd700, 0.4);
-    g.strokeRoundedRect(x + 3, y + 3, w - 6, h - 6, r - 2);
-
-    // Subtle vertical separators between functional zones.
-    const sepColor = 0xffd700;
-    const sepAlpha = 0.18;
-    g.lineStyle(1, sepColor, sepAlpha);
-    // Left zone (HUD readouts) ends roughly after the HUD trio.
-    const hudRightEdge = L.hudCenterX + (3 * L.hudPanelW + 2 * L.hudPanelGap) / 2 + 8;
-    g.beginPath();
-    g.moveTo(hudRightEdge, y + 8);
-    g.lineTo(hudRightEdge, y + h - 8);
-    g.strokePath();
-
-    // Decorative corner rivets.
-    g.fillStyle(0xffd700, 0.55);
-    const rv = 2.4;
-    g.fillCircle(x + 9, y + 9, rv);
-    g.fillCircle(x + w - 9, y + 9, rv);
-    g.fillCircle(x + 9, y + h - 9, rv);
-    g.fillCircle(x + w - 9, y + h - 9, rv);
+    // Ruby-diamond endcaps tying back to the title-bar style.
+    const drawEndcap = (cx: number) => {
+      const cap = this.add.graphics();
+      cap.setDepth(102);
+      const sx = 5, sy = 6;
+      cap.fillStyle(0xff3355, 1);
+      cap.beginPath();
+      cap.moveTo(cx, y + 1 - sy);
+      cap.lineTo(cx + sx, y + 1);
+      cap.lineTo(cx, y + 1 + sy);
+      cap.lineTo(cx - sx, y + 1);
+      cap.closePath();
+      cap.fillPath();
+      cap.lineStyle(1.2, 0xffd700, 1);
+      cap.strokePath();
+      cap.fillStyle(0xffffff, 0.55);
+      cap.beginPath();
+      cap.moveTo(cx, y + 1 - sy + 1.5);
+      cap.lineTo(cx + sx * 0.45, y + 1 - sy * 0.15);
+      cap.lineTo(cx - sx * 0.15, y + 1 - sy * 0.4);
+      cap.closePath();
+      cap.fillPath();
+    };
+    drawEndcap(x + 10);
+    drawEndcap(x + w - 10);
   }
 
   private buildLandscapeControls(L: LayoutDims): void {

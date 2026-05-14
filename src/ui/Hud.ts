@@ -229,35 +229,38 @@ export class Hud {
     rv.fillCircle(w / 2 - offset - 0.4, h / 2 - offset - 0.4, 0.6);
     wrap.add(rv);
 
-    // Label — small printed plate at the top of the pocket.
+    // Label tab — sits ABOVE the bezel, overlapping the top edge like a
+    // nameplate. Same idiom as the BET/LINES steppers for visual cohesion.
     const labelText = scene.add
-      .text(0, -ph / 2 + 3, spec.label, {
+      .text(0, -h / 2 - 5, spec.label, {
         fontFamily: '"Arial Black", Arial, sans-serif',
         fontSize: `${labelPx}px`,
         fontStyle: 'bold',
         color: '#ffd24a',
-      })
-      .setOrigin(0.5, 0);
+        backgroundColor: '#0a0a18',
+        padding: { left: 4, right: 4, top: 1, bottom: 1 },
+      } as Phaser.Types.GameObjects.Text.TextStyle)
+      .setOrigin(0.5, 0.5);
     labelText.setShadow(0, 1, '#000000', 2, false, true);
     wrap.add(labelText);
 
-    // Value — bright LED with strong glow.
+    // Value — centered inside the now-uncluttered pocket.
     const val = scene.add
-      .text(0, ph / 2 - 3, spec.value, {
+      .text(0, 0, spec.value, {
         fontFamily: '"Courier New", "Menlo", monospace',
         fontSize: `${valuePx}px`,
         fontStyle: 'bold',
         color: spec.valueColor,
       })
-      .setOrigin(0.5, 1);
+      .setOrigin(0.5, 0.5);
     val.setShadow(0, 0, spec.valueColor, 12, false, true);
     wrap.add(val);
 
-    // Soft glow halo behind value (additive).
+    // Soft glow halo behind value (additive), centered.
     const halo = scene.add.graphics();
     const haloColor = Phaser.Display.Color.HexStringToColor(spec.valueColor).color;
     halo.fillStyle(haloColor, 0.18);
-    halo.fillEllipse(0, ph / 2 - valuePx * 0.55, valuePx * 2.4, valuePx * 1.3);
+    halo.fillEllipse(0, 0, valuePx * 2.4, valuePx * 1.3);
     halo.setBlendMode(Phaser.BlendModes.ADD);
     wrap.add(halo);
     wrap.bringToTop(val);
@@ -267,11 +270,10 @@ export class Hud {
     this.panelCenters[spec.label] = { x: cx, y: cy };
     this.panelContainers[spec.label] = wrap;
 
-    // Scanlines inside the display pocket for CRT/LED feel.
+    // Scanlines fill the full pocket interior now that the label moved out.
     const scan = scene.add.graphics();
     scan.fillStyle(0x000000, 0.22);
-    const scanTop = -ph / 2 + labelPx + 4;
-    for (let yy = scanTop; yy < ph / 2 - 2; yy += 2) {
+    for (let yy = -ph / 2 + 2; yy < ph / 2 - 2; yy += 2) {
       scan.fillRect(-pw / 2 + 3, yy, pw - 6, 1);
     }
     wrap.add(scan);
@@ -302,24 +304,28 @@ export class Hud {
     g.fillRect(-this.panelW / 2 + 4, -this.panelH / 2 + 4, this.panelW - 8, 4);
     wrap.add(g);
 
+    // Label tab — overlaps the panel's top border (matches Stepper idiom).
     const labelText = scene.add
-      .text(0, -this.panelH / 2 + 5, spec.label, {
+      .text(0, -this.panelH / 2 - 5, spec.label, {
         fontFamily: '"Arial Black", Arial, sans-serif',
         fontSize: `${labelPx}px`,
         fontStyle: 'bold',
         color: '#ffd700',
-      })
-      .setOrigin(0.5, 0);
+        backgroundColor: '#0a0a18',
+        padding: { left: 4, right: 4, top: 1, bottom: 1 },
+      } as Phaser.Types.GameObjects.Text.TextStyle)
+      .setOrigin(0.5, 0.5);
     wrap.add(labelText);
 
+    // Value centered — interior is fully available with label out as a tab.
     const val = scene.add
-      .text(0, this.panelH / 2 - 5, spec.value, {
+      .text(0, 0, spec.value, {
         fontFamily: '"Courier New", "Menlo", monospace',
         fontSize: `${valuePx}px`,
         fontStyle: 'bold',
         color: spec.valueColor,
       })
-      .setOrigin(0.5, 1);
+      .setOrigin(0.5, 0.5);
     val.setShadow(0, 0, spec.valueColor, 6, false, true);
     wrap.add(val);
 
@@ -329,12 +335,11 @@ export class Hud {
     this.panelContainers[spec.label] = wrap;
 
     const scan = scene.add.graphics();
-    const ledTop = -this.panelH / 2 + labelPx + 8;
-    const ledH = this.panelH - (labelPx + 12);
     scan.fillStyle(0x000000, 0.18);
-    for (let yy = ledTop; yy < ledTop + ledH; yy += 3) {
+    for (let yy = -this.panelH / 2 + 4; yy < this.panelH / 2 - 4; yy += 3) {
       scan.fillRect(-this.panelW / 2 + 6, yy, this.panelW - 12, 1);
     }
     wrap.add(scan);
+    wrap.bringToTop(val);
   }
 }
