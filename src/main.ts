@@ -1,5 +1,8 @@
 import Phaser from 'phaser';
 import { gameConfig, DPR } from './config';
+import { loadBalance } from './systems/Balance';
+import { initNativeShell } from './systems/NativeShell';
+import { i18n } from './systems/I18n';
 
 // Text resolution override: rasterize text textures at dpr× their game-units size so
 // the text textures themselves are crisp. Without this, fonts get bilinear-stretched
@@ -24,7 +27,12 @@ Phaser.GameObjects.GameObjectFactory.register(
   },
 );
 
-const game = new Phaser.Game(gameConfig);
+async function boot(): Promise<void> {
+  await Promise.all([loadBalance(), i18n.init()]);
+  initNativeShell();
+  const game = new Phaser.Game(gameConfig);
+  (window as any).__PHASER_GAME__ = game;
+  (window as any).__DPR__ = DPR;
+}
 
-(window as any).__PHASER_GAME__ = game;
-(window as any).__DPR__ = DPR;
+void boot();

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { audio } from '../systems/AudioManager';
 import { rng } from '../systems/RNG';
+import { i18n } from '../systems/I18n';
 import { makeButton } from './containerInput';
 
 const DEPTH = 405;
@@ -74,7 +75,7 @@ export class GambleModal {
     container.add(panel);
 
     const title = this.scene.add
-      .text(cx, my + 22, 'DOUBLE OR NOTHING', {
+      .text(cx, my + 22, i18n.t('double-or-nothing'), {
         fontFamily: '"Impact", "Arial Black", sans-serif',
         fontSize: '20px',
         fontStyle: 'bold',
@@ -85,7 +86,7 @@ export class GambleModal {
     container.add(title);
 
     const winLabel = this.scene.add
-      .text(cx, my + 56, `WIN  ${winAmount}  →  ${winAmount * 2}?`, {
+      .text(cx, my + 56, i18n.t('gamble-prompt', { win: winAmount, doubled: winAmount * 2 }), {
         fontFamily: '"Courier New", monospace',
         fontSize: '16px',
         fontStyle: 'bold',
@@ -138,7 +139,7 @@ export class GambleModal {
       c.add(icon);
 
       const labelT = this.scene.add
-        .text(0, 30, color === 'red' ? 'RED' : 'BLACK', {
+        .text(0, 30, color === 'red' ? i18n.t('red') : i18n.t('black'), {
           fontFamily: '"Arial Black", Arial, sans-serif',
           fontSize: '13px',
           fontStyle: 'bold',
@@ -155,7 +156,7 @@ export class GambleModal {
 
     // "TAKE WIN" tiny text bottom.
     const skip = this.scene.add
-      .text(cx, my + MODAL_H - 14, 'tap outside to take winnings', {
+      .text(cx, my + MODAL_H - 14, i18n.t('gamble-take'), {
         fontFamily: '"Arial", sans-serif',
         fontSize: '10px',
         color: '#88889e',
@@ -199,7 +200,7 @@ export class GambleModal {
     });
 
     const verdict = this.scene.add
-      .text(cx, cy + 60, won ? `+${winAmount}  WIN!` : 'BUST', {
+      .text(cx, cy + 60, won ? i18n.t('gamble-win', { n: winAmount }) : i18n.t('gamble-bust'), {
         fontFamily: '"Impact", "Arial Black", sans-serif',
         fontSize: '32px',
         fontStyle: 'bold',

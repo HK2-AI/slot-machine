@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { i18n } from '../systems/I18n';
 
 const CHIP_W = 92;
 const CHIP_H = 22;
@@ -77,7 +78,7 @@ export class StreakChip extends Phaser.GameObjects.Container {
       );
     }
 
-    this.text.setText(`${tier.flame} STREAK ×${n}`);
+    this.text.setText(`${tier.flame} ${i18n.t('streak')} ×${n}`);
     this.text.setColor(colorHex);
     this.setVisible(true);
 

@@ -19,6 +19,8 @@ import { Balance } from '../systems/Balance';
 import { WinFx } from '../ui/WinFx';
 import { audio } from '../systems/AudioManager';
 import { settings, sessionStats } from '../systems/Settings';
+import { appEvents, haptics, shareWin } from '../systems/NativeShell';
+import { i18n } from '../systems/I18n';
 import { SettingsModal } from '../ui/SettingsModal';
 import { SpinHistory, type SpinTier } from '../ui/SpinHistory';
 import { BuyBonusModal } from '../ui/BuyBonusModal';
@@ -102,6 +104,7 @@ export class MainScene extends Phaser.Scene {
   private streakMultiplierAdd = 0;
 
   private resizeTimer?: Phaser.Time.TimerEvent;
+  private offAppActive?: () => void;
 
   constructor() {
     super({ key: 'MainScene' });
@@ -116,10 +119,16 @@ export class MainScene extends Phaser.Scene {
     this.buildLayout();
 
     this.scale.on('resize', this.onResize, this);
+    // Backgrounding mid-spin would freeze reels indefinitely; snap them so
+    // the player always returns to a settled state.
+    this.offAppActive = appEvents.onActiveChange((active) => {
+      if (!active && this.spinning) this.quickStopAllReels();
+    });
     this.events.once('shutdown', () => {
       this.scale.off('resize', this.onResize, this);
       this.resizeTimer?.remove();
       this.freeSpinTimer?.remove();
+      this.offAppActive?.();
     });
   }
 
@@ -395,7 +404,7 @@ export class MainScene extends Phaser.Scene {
     const linesX = betX + L.stepperW + stepperGap;
 
     const betStepper = new Stepper(this, betX, L.stepperY, {
-      label: 'BET',
+      label: i18n.t('bet'),
       values: BET_OPTIONS,
       initial: this.betPerLine,
       width: L.stepperW,
@@ -406,7 +415,7 @@ export class MainScene extends Phaser.Scene {
     betStepper.setDepth(150);
 
     const linesStepper = new Stepper(this, linesX, L.stepperY, {
-      label: 'LINES',
+      label: i18n.t('lines'),
       values: LINE_OPTIONS,
       initial: this.activeLines,
       width: L.stepperW,
@@ -479,6 +488,7 @@ export class MainScene extends Phaser.Scene {
 
     audio.play('spin-start');
     audio.play('reel-loop', { loop: true, volume: 0.7 });
+    haptics.light();
 
     if (!isFreeSpin) {
       Balance.deduct(totalBet);
@@ -513,8 +523,10 @@ export class MainScene extends Phaser.Scene {
         if (isFinal) {
           audio.stop('reel-loop');
           audio.play('reel-stop-final');
+          haptics.medium();
         } else {
           audio.play('reel-stop');
+          haptics.light();
         }
         this.playReelStopFx(i);
         finished++;
@@ -570,6 +582,11 @@ export class MainScene extends Phaser.Scene {
       if (isMega || isBig) audio.play('win-big');
       else if (isMedium) audio.play('win-medium');
       else audio.play('win-small');
+
+      if (isMega) haptics.heavy();
+      else if (isBig) haptics.success();
+      else if (isMedium) haptics.medium();
+      else haptics.light();
 
       this.winFx.centerBadge(winSum);
       this.winFx.coinBurst(isMega ? 56 : isBig ? 40 : 28);
@@ -758,7 +775,7 @@ export class MainScene extends Phaser.Scene {
     g.strokeRoundedRect(-bannerW / 2, -bannerH / 2, bannerW, bannerH, 14);
     c.add(g);
     const t = this.add
-      .text(0, 0, `BONUS PURCHASED\n${awarded} FREE SPINS`, {
+      .text(0, 0, i18n.t('bonus-purchased', { spins: awarded }), {
         fontFamily: '"Arial Black", Arial, sans-serif',
         fontSize: '17px',
         fontStyle: 'bold',
@@ -914,7 +931,11 @@ export class MainScene extends Phaser.Scene {
     if (!this.freeSpinBadgeText) return;
     const used = this.freeSpinsTotal - this.freeSpinsRemaining;
     this.freeSpinBadgeText.setText(
-      `FREE SPIN  ${used}/${this.freeSpinsTotal}   ×${this.FREE_SPIN_MULTIPLIER}`,
+      i18n.t('free-spin-status', {
+        used,
+        total: this.freeSpinsTotal,
+        mult: this.FREE_SPIN_MULTIPLIER,
+      }),
     );
   }
 
@@ -937,7 +958,7 @@ export class MainScene extends Phaser.Scene {
   private playBigWin(amount: number): void {
     this.cameras.main.shake(640, 0.008);
     const label = this.add
-      .text(this.scale.width / 2, this.blockY + this.blockH / 2 - 80, `BIG WIN  +${amount}`, {
+      .text(this.scale.width / 2, this.blockY + this.blockH / 2 - 80, `${i18n.t('big-win')}  +${amount}`, {
         fontFamily: '"Impact", "Arial Black", sans-serif',
         fontSize: '64px',
         fontStyle: 'bold',
@@ -975,6 +996,50 @@ export class MainScene extends Phaser.Scene {
       burst.explode(80);
       this.time.delayedCall(1600, () => burst.destroy());
     }
+
+    this.spawnShareChip(amount);
+  }
+
+  /** Tap-to-share pill that appears beneath the BIG WIN banner for ~4s. */
+  private spawnShareChip(amount: number): void {
+    const x = this.scale.width / 2;
+    const y = this.blockY + this.blockH / 2 + 30;
+    const w = 110;
+    const h = 32;
+    const c = this.add.container(x, y);
+    c.setDepth(252);
+    const g = this.add.graphics();
+    g.fillStyle(0x0a0a18, 0.92);
+    g.fillRoundedRect(-w / 2, -h / 2, w, h, h / 2);
+    g.lineStyle(1.5, 0x44eaff, 1);
+    g.strokeRoundedRect(-w / 2, -h / 2, w, h, h / 2);
+    c.add(g);
+    const t = this.add
+      .text(0, 0, i18n.t('share') + '  ↗', {
+        fontFamily: '"Arial Black", Arial, sans-serif',
+        fontSize: '13px',
+        fontStyle: 'bold',
+        color: '#44eaff',
+      })
+      .setOrigin(0.5);
+    c.add(t);
+    c.setSize(w, h);
+    c.setInteractive(new Phaser.Geom.Rectangle(-w / 2, -h / 2, w, h), Phaser.Geom.Rectangle.Contains);
+    c.on('pointerdown', () => {
+      haptics.light();
+      void shareWin(amount);
+    });
+    c.setAlpha(0);
+    c.setScale(0.6);
+    this.tweens.add({ targets: c, alpha: 1, scale: 1, duration: 240, delay: 200, ease: 'Back.Out' });
+    this.tweens.add({
+      targets: c,
+      alpha: 0,
+      duration: 360,
+      delay: 4000,
+      ease: 'Sine.In',
+      onComplete: () => c.destroy(),
+    });
   }
 
   private playReelStopFx(reelIndex: number): void {

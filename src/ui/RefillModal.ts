@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { audio } from '../systems/AudioManager';
 import { Balance } from '../systems/Balance';
+import { i18n } from '../systems/I18n';
 import { makeButton } from './containerInput';
 
 const DEPTH = 410;
@@ -69,7 +70,7 @@ export class RefillModal {
     container.add(panel);
 
     const title = this.scene.add
-      .text(cx, my + 28, reason === 'broke' ? 'OUT OF CREDITS' : 'TOP UP', {
+      .text(cx, my + 28, reason === 'broke' ? i18n.t('out-of-credits') : i18n.t('top-up').replace('+ ', ''), {
         fontFamily: '"Impact", "Arial Black", sans-serif',
         fontSize: '22px',
         fontStyle: 'bold',
@@ -81,7 +82,7 @@ export class RefillModal {
 
     const sub = this.scene.add
       .text(cx, my + 64,
-        reason === 'broke' ? 'You ran out — grab a refill?' : `Add ${REFILL_AMOUNT} credits to your balance.`,
+        reason === 'broke' ? i18n.t('refill-broke') : i18n.t('refill-manual', { n: REFILL_AMOUNT }),
         {
           fontFamily: '"Arial", sans-serif',
           fontSize: '13px',
@@ -114,7 +115,7 @@ export class RefillModal {
     bg.strokeRoundedRect(-btnW / 2, -btnH / 2, btnW, btnH, btnH / 2);
     btn.add(bg);
     const t = this.scene.add
-      .text(0, 0, `+${REFILL_AMOUNT}  CREDITS`, {
+      .text(0, 0, i18n.t('refill-button', { n: REFILL_AMOUNT }), {
         fontFamily: '"Arial Black", Arial, sans-serif',
         fontSize: '20px',
         fontStyle: 'bold',
@@ -136,7 +137,7 @@ export class RefillModal {
 
     // Tiny dismiss link.
     const dismiss = this.scene.add
-      .text(cx, my + MODAL_H - 16, 'no thanks', {
+      .text(cx, my + MODAL_H - 16, i18n.t('no-thanks'), {
         fontFamily: '"Arial", sans-serif',
         fontSize: '11px',
         color: '#88889e',

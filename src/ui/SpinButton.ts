@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { SPARKLE_TEXTURE } from './Background';
 import { enableContainerInput } from './containerInput';
 import { audio } from '../systems/AudioManager';
+import { i18n } from '../systems/I18n';
 
 export class SpinButton extends Phaser.GameObjects.Container {
   private readonly glow: Phaser.GameObjects.Graphics;
@@ -81,7 +82,7 @@ export class SpinButton extends Phaser.GameObjects.Container {
     // SPIN text.
     const labelPx = Math.max(20, Math.round(RADIUS * 0.55));
     this.label = scene.add
-      .text(0, 0, 'SPIN', {
+      .text(0, 0, i18n.t('spin'), {
         fontFamily: '"Arial Black", Arial, sans-serif',
         fontSize: `${labelPx}px`,
         fontStyle: 'bold',
@@ -226,12 +227,12 @@ export class SpinButton extends Phaser.GameObjects.Container {
       this.glow.setAlpha(0);
       this.bodyGroup.setAlpha(0.55);
       this.label.setAlpha(0.7);
-      this.label.setText('SPINNING');
+      this.label.setText(i18n.t('spinning'));
       this.scene.input.setDefaultCursor('default');
     } else {
       this.bodyGroup.setAlpha(1);
       this.label.setAlpha(1);
-      this.label.setText('SPIN');
+      this.label.setText(i18n.t('spin'));
       this.label.setColor('#ffffff');
       this.bodyGroup.setScale(1);
       this.startGlowTween();
@@ -246,7 +247,7 @@ export class SpinButton extends Phaser.GameObjects.Container {
   setSpinningMode(spinning: boolean): void {
     if (spinning) {
       this.disabled = false;
-      this.label.setText('STOP');
+      this.label.setText(i18n.t('stop'));
       this.label.setColor('#ff5566');
       this.label.setAlpha(1);
       this.bodyGroup.setAlpha(1);
@@ -256,7 +257,7 @@ export class SpinButton extends Phaser.GameObjects.Container {
       this.breathTween?.stop();
       this.breathTween = undefined;
     } else {
-      this.label.setText('SPIN');
+      this.label.setText(i18n.t('spin'));
       this.label.setColor('#ffffff');
       this.label.setAlpha(1);
       this.bodyGroup.setAlpha(1);

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { audio } from '../systems/AudioManager';
 import { settings, sessionStats } from '../systems/Settings';
+import { i18n, type Locale } from '../systems/I18n';
 import { enableContainerInput, makeButton } from './containerInput';
 
 const DEPTH = 400;
@@ -122,7 +123,7 @@ export class SettingsModal {
 
     // Title.
     const title = this.scene.add
-      .text(cxCenter, my + 22, 'SETTINGS', {
+      .text(cxCenter, my + 22, i18n.t('settings'), {
         fontFamily: '"Impact", "Arial Black", sans-serif',
         fontSize: '26px',
         fontStyle: 'bold',
@@ -141,20 +142,20 @@ export class SettingsModal {
     const ROW_GAP = compact ? 38 : 50;
 
     // ── Mute toggle ──
-    this.addToggleRow(container, rowX, rowY, rowW, 'MUTE', () => audio.isMuted(), (v) => {
+    this.addToggleRow(container, rowX, rowY, rowW, i18n.t('mute'), () => audio.isMuted(), (v) => {
       audio.setMute(v);
       if (!v) audio.startBgm();
     });
     rowY += ROW_GAP;
 
     // ── SFX volume slider ──
-    this.addSliderRow(container, rowX, rowY, rowW, 'SFX', () => this.getSfxVol(), (v) => {
+    this.addSliderRow(container, rowX, rowY, rowW, i18n.t('sfx'), () => this.getSfxVol(), (v) => {
       audio.setSfxVolume(v);
     });
     rowY += ROW_GAP;
 
     // ── BGM volume slider ──
-    this.addSliderRow(container, rowX, rowY, rowW, 'MUSIC', () => this.getBgmVol(), (v) => {
+    this.addSliderRow(container, rowX, rowY, rowW, i18n.t('music'), () => this.getBgmVol(), (v) => {
       audio.setBgmVolume(v);
     });
     rowY += ROW_GAP;
@@ -165,7 +166,7 @@ export class SettingsModal {
       rowX,
       rowY,
       rowW,
-      'QUICK SPIN',
+      i18n.t('quick-spin'),
       () => settings.isQuickSpin(),
       (v) => settings.setQuickSpin(v),
     );
@@ -177,10 +178,14 @@ export class SettingsModal {
       rowX,
       rowY,
       rowW,
-      'GAMBLE',
+      i18n.t('gamble'),
       () => settings.isGambleEnabled(),
       (v) => settings.setGambleEnabled(v),
     );
+    rowY += ROW_GAP;
+
+    // ── Language selector ──
+    this.addLanguageRow(container, rowX, rowY, rowW);
     rowY += ROW_GAP - 8;
 
     // ── Session stats section (also hosts TOP UP shortcut) ──
@@ -259,7 +264,7 @@ export class SettingsModal {
 
     // Tab label, overlapping the top edge — matches the HUD/Stepper aesthetic.
     const titleT = this.scene.add
-      .text(x + 14, topY, 'THIS SESSION', {
+      .text(x + 14, topY, i18n.t('this-session'), {
         fontFamily: '"Arial Black", Arial, sans-serif',
         fontSize: '11px',
         fontStyle: 'bold',
@@ -281,22 +286,22 @@ export class SettingsModal {
 
     const cells: { label: string; getter: () => string; color: () => string }[] = [
       {
-        label: 'SPINS',
+        label: i18n.t('spins'),
         getter: () => String(sessionStats.spins),
         color: () => '#ffe98a',
       },
       {
-        label: 'WAGERED',
+        label: i18n.t('wagered'),
         getter: () => String(sessionStats.wagered),
         color: () => '#ff8a3a',
       },
       {
-        label: 'WON',
+        label: i18n.t('won'),
         getter: () => String(sessionStats.won),
         color: () => '#4be84b',
       },
       {
-        label: 'NET',
+        label: i18n.t('net'),
         getter: () => {
           const n = sessionStats.net();
           return (n >= 0 ? '+' : '') + String(n);
@@ -371,7 +376,7 @@ export class SettingsModal {
     rg.strokeRoundedRect(-resetW / 2, -btnH / 2, resetW, btnH, btnH / 2);
     resetBtn.add(rg);
     const rt = this.scene.add
-      .text(0, 0, 'RESET', {
+      .text(0, 0, i18n.t('reset'), {
         fontFamily: '"Arial Black", Arial, sans-serif',
         fontSize: '10px',
         fontStyle: 'bold',
@@ -405,7 +410,7 @@ export class SettingsModal {
     tg.strokeRoundedRect(-topUpW / 2, -btnH / 2, topUpW, btnH, btnH / 2);
     topUpBtn.add(tg);
     const tt = this.scene.add
-      .text(0, 0, '+ TOP UP', {
+      .text(0, 0, i18n.t('top-up'), {
         fontFamily: '"Arial Black", Arial, sans-serif',
         fontSize: '10px',
         fontStyle: 'bold',
@@ -414,6 +419,91 @@ export class SettingsModal {
       .setOrigin(0.5);
     topUpBtn.add(tt);
     parent.add(topUpBtn);
+  }
+
+  /** Render: [LANGUAGE] [EN | 中] segmented control. Restarts the scene on change. */
+  private addLanguageRow(
+    parent: Phaser.GameObjects.Container,
+    x: number,
+    y: number,
+    w: number,
+  ): void {
+    const labelT = this.scene.add
+      .text(x, y, i18n.t('language'), {
+        fontFamily: '"Arial Black", Arial, sans-serif',
+        fontSize: '14px',
+        fontStyle: 'bold',
+        color: '#ffd700',
+      })
+      .setOrigin(0, 0.5);
+    parent.add(labelT);
+
+    const segW = 96;
+    const segH = 28;
+    const segX = x + w - segW / 2;
+    const cellW = segW / 2;
+
+    const seg = this.scene.add.container(segX, y);
+    parent.add(seg);
+
+    const bg = this.scene.add.graphics();
+    seg.add(bg);
+
+    const enT = this.scene.add
+      .text(-cellW / 2, 0, 'EN', {
+        fontFamily: '"Arial Black", Arial, sans-serif',
+        fontSize: '12px',
+        fontStyle: 'bold',
+        color: '#ffffff',
+      })
+      .setOrigin(0.5);
+    seg.add(enT);
+
+    const zhT = this.scene.add
+      .text(cellW / 2, 0, '中', {
+        fontFamily: '"Arial Black", Arial, sans-serif',
+        fontSize: '14px',
+        fontStyle: 'bold',
+        color: '#ffffff',
+      })
+      .setOrigin(0.5);
+    seg.add(zhT);
+
+    const draw = () => {
+      const cur = i18n.locale;
+      bg.clear();
+      bg.fillStyle(0x222238, 1);
+      bg.fillRoundedRect(-segW / 2, -segH / 2, segW, segH, segH / 2);
+      bg.lineStyle(1.5, 0xffd700, 0.85);
+      bg.strokeRoundedRect(-segW / 2, -segH / 2, segW, segH, segH / 2);
+      bg.fillStyle(0xffd700, 0.9);
+      const sx = cur === 'en' ? -segW / 2 + 2 : 0 + 2;
+      bg.fillRoundedRect(sx, -segH / 2 + 2, cellW - 4, segH - 4, (segH - 4) / 2);
+      enT.setColor(cur === 'en' ? '#1a0a00' : '#ffe98a');
+      zhT.setColor(cur === 'zh-HK' ? '#1a0a00' : '#ffe98a');
+    };
+    draw();
+
+    const apply = (loc: Locale) => {
+      if (i18n.locale === loc) return;
+      audio.play('click');
+      i18n.setLocale(loc);
+      this.close();
+      this.scene.scene.restart();
+    };
+
+    seg.setSize(segW, segH);
+    enableContainerInput(
+      seg,
+      new Phaser.Geom.Rectangle(-segW / 2, -segH / 2, segW, segH),
+      Phaser.Geom.Rectangle.Contains,
+    );
+    seg.on('pointerdown', (
+      _p: Phaser.Input.Pointer,
+      lx: number,
+    ) => {
+      apply(lx < 0 ? 'en' : 'zh-HK');
+    });
   }
 
   /** Read current SFX volume from AudioManager via its persisted prefs. */
@@ -487,7 +577,7 @@ export class SettingsModal {
       bg.strokeRoundedRect(-pillW / 2, -pillH / 2, pillW, pillH, pillH / 2);
       const knobX = on ? pillW / 2 - pillH / 2 : -pillW / 2 + pillH / 2;
       this.scene.tweens.add({ targets: knob, x: knobX, duration: 140, ease: 'Sine.Out' });
-      stateT.setText(on ? 'ON' : 'OFF');
+      stateT.setText(on ? i18n.t('on') : i18n.t('off'));
       stateT.x = on ? -8 : 8;
     };
     redraw();

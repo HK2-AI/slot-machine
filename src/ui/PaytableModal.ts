@@ -3,6 +3,7 @@ import { PAYOUTS, PAYOUT_DISPLAY_ORDER } from '../data/payouts';
 import { getSymbol } from '../data/symbols';
 import { enableContainerInput, makeButton } from './containerInput';
 import { audio } from '../systems/AudioManager';
+import { i18n } from '../systems/I18n';
 
 const DEPTH = 400;
 
@@ -117,7 +118,7 @@ export class PaytableModal {
 
     // Title.
     const title = this.scene.add
-      .text(cxCenter, my + 22, 'PAYTABLE', {
+      .text(cxCenter, my + 22, i18n.t('paytable'), {
         fontFamily: '"Impact", "Arial Black", sans-serif',
         fontSize: '30px',
         fontStyle: 'bold',
@@ -136,7 +137,7 @@ export class PaytableModal {
       mx + 500 * scaleK,
       mx + 620 * scaleK,
     ];
-    const headers = ['SYMBOL', 'x3', 'x4', 'x5'];
+    const headers = [i18n.t('paytable-symbol'), i18n.t('paytable-x3'), i18n.t('paytable-x4'), i18n.t('paytable-x5')];
     const headerY = my + 78;
     for (let i = 0; i < headers.length; i++) {
       const isSymbol = i === 0;
@@ -220,7 +221,7 @@ export class PaytableModal {
 
     // Footer hint.
     const hint = this.scene.add
-      .text(cxCenter, my + MODAL_H - 28, 'Multipliers × per-line bet. Match left-to-right, 3+ in a row.', {
+      .text(cxCenter, my + MODAL_H - 28, i18n.t('paytable-hint'), {
         fontFamily: '"Arial", sans-serif',
         fontSize: '12px',
         color: '#bcbcd6',

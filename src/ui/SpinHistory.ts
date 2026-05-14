@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { i18n } from '../systems/I18n';
 
 export type SpinTier = 'mega' | 'big' | 'medium' | 'small' | 'none';
 
@@ -50,7 +51,7 @@ export class SpinHistory extends Phaser.GameObjects.Container {
 
     // "LAST" label, left side.
     const label = scene.add
-      .text(-bgW / 2 + padX, 0, 'LAST', {
+      .text(-bgW / 2 + padX, 0, i18n.t('last'), {
         fontFamily: '"Arial Black", Arial, sans-serif',
         fontSize: '8px',
         fontStyle: 'bold',

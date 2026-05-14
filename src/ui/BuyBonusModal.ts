@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { audio } from '../systems/AudioManager';
+import { i18n } from '../systems/I18n';
 import { enableContainerInput, makeButton } from './containerInput';
 
 const DEPTH = 400;
@@ -58,7 +59,7 @@ export class BuyBonusModal {
     this.bgGfx = bg;
 
     const label = this.scene.add
-      .text(0, 0, 'BUY BONUS', {
+      .text(0, 0, i18n.t('buy-bonus'), {
         fontFamily: '"Arial Black", Arial, sans-serif',
         fontSize: '13px',
         fontStyle: 'bold',
@@ -199,7 +200,7 @@ export class BuyBonusModal {
     container.add(panel);
 
     const title = this.scene.add
-      .text(cxCenter, my + 22, 'BUY FREE SPINS', {
+      .text(cxCenter, my + 22, i18n.t('buy-free-spins'), {
         fontFamily: '"Impact", "Arial Black", sans-serif',
         fontSize: '24px',
         fontStyle: 'bold',
@@ -211,7 +212,7 @@ export class BuyBonusModal {
 
     // Award text — big, central.
     const award = this.scene.add
-      .text(cxCenter, my + 76, `${BUY_BONUS_FREE_SPINS} FREE SPINS`, {
+      .text(cxCenter, my + 76, i18n.t('free-spins-award', { n: BUY_BONUS_FREE_SPINS }), {
         fontFamily: '"Arial Black", Arial, sans-serif',
         fontSize: '28px',
         fontStyle: 'bold',
@@ -222,7 +223,7 @@ export class BuyBonusModal {
     container.add(award);
 
     const sub = this.scene.add
-      .text(cxCenter, my + 108, 'with ×2 win multiplier', {
+      .text(cxCenter, my + 108, i18n.t('with-multiplier'), {
         fontFamily: '"Arial", sans-serif',
         fontSize: '13px',
         fontStyle: 'italic',
@@ -232,8 +233,8 @@ export class BuyBonusModal {
     container.add(sub);
 
     // Cost row.
-    this.addStatRow(container, mx + 28, my + 148, MODAL_W - 56, 'COST', `${cost}`, '#ff8a3a');
-    this.addStatRow(container, mx + 28, my + 174, MODAL_W - 56, 'BALANCE', `${balance}`,
+    this.addStatRow(container, mx + 28, my + 148, MODAL_W - 56, i18n.t('cost'), `${cost}`, '#ff8a3a');
+    this.addStatRow(container, mx + 28, my + 174, MODAL_W - 56, i18n.t('balance'), `${balance}`,
       canAfford ? '#4be84b' : '#ff5566');
 
     // Buy / Cancel buttons.
@@ -243,12 +244,12 @@ export class BuyBonusModal {
     const cancelX = mx + MODAL_W * 0.32;
     const buyX = mx + MODAL_W * 0.68;
 
-    this.addActionButton(container, cancelX, btnY, btnW, btnH, 'CANCEL', '#bcbcd6', () => {
+    this.addActionButton(container, cancelX, btnY, btnW, btnH, i18n.t('cancel'), '#bcbcd6', () => {
       audio.play('click');
       this.close();
     }, true);
 
-    this.addActionButton(container, buyX, btnY, btnW, btnH, canAfford ? `BUY ${cost}` : 'NOT ENOUGH',
+    this.addActionButton(container, buyX, btnY, btnW, btnH, canAfford ? i18n.t('buy-cta', { cost }) : i18n.t('not-enough'),
       canAfford ? '#1a0a00' : '#88889e', () => {
         if (!canAfford) {
           audio.play('error');

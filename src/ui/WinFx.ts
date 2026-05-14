@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { WinLine } from '../systems/PaylineEvaluator';
 import { audio } from '../systems/AudioManager';
+import { i18n } from '../systems/I18n';
 
 const COIN_TEXTURE = 'fx-coin';
 const CONFETTI_TEXTURE = 'fx-confetti';
@@ -99,7 +100,7 @@ export class WinFx {
     wrap.setDepth(220);
 
     const winT = this.scene.add
-      .text(0, -2, 'WIN', {
+      .text(0, -2, i18n.t('win-badge'), {
         fontFamily: '"Impact", "Arial Black", sans-serif',
         fontSize: '36px',
         fontStyle: 'bold',
@@ -224,7 +225,7 @@ export class WinFx {
     wrap.setDepth(260);
 
     const main = this.scene.add
-      .text(0, -22, 'FREE SPINS!', {
+      .text(0, -22, i18n.t('free-spins-banner'), {
         fontFamily: '"Impact", "Arial Black", sans-serif',
         fontSize: '64px',
         fontStyle: 'bold',
@@ -237,7 +238,7 @@ export class WinFx {
     wrap.add(main);
 
     const sub = this.scene.add
-      .text(0, 36, `${scatters}× SCATTER  →  +${awarded} SPINS`, {
+      .text(0, 36, i18n.t('scatter-trigger', { count: scatters, spins: awarded }), {
         fontFamily: '"Arial Black", Arial, sans-serif',
         fontSize: '26px',
         fontStyle: 'bold',
@@ -289,7 +290,7 @@ export class WinFx {
     wrap.setDepth(260);
 
     const top = this.scene.add
-      .text(0, -28, 'FREE SPINS COMPLETE', {
+      .text(0, -28, i18n.t('free-spins-complete'), {
         fontFamily: '"Arial Black", Arial, sans-serif',
         fontSize: '28px',
         fontStyle: 'bold',
@@ -302,7 +303,7 @@ export class WinFx {
     wrap.add(top);
 
     const big = this.scene.add
-      .text(0, 24, `TOTAL +${totalWin}`, {
+      .text(0, 24, i18n.t('total-plus', { n: totalWin }), {
         fontFamily: '"Impact", "Arial Black", sans-serif',
         fontSize: '56px',
         fontStyle: 'bold',
@@ -346,7 +347,7 @@ export class WinFx {
     const wrap = this.scene.add.container(cx, cy);
     wrap.setDepth(265);
 
-    const letters = 'MEGA WIN'.split('');
+    const letters = i18n.t('mega-win').split('');
     const letterPx = Math.max(56, Math.floor(this.geom.symbolSize * 0.95));
     const letterObjs: Phaser.GameObjects.Text[] = [];
     let cursorX = 0;

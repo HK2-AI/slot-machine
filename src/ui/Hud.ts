@@ -1,7 +1,12 @@
 import Phaser from 'phaser';
+import { i18n } from '../systems/I18n';
+import type { StringKey } from '../i18n/locales/en';
 
 interface PanelSpec {
+  /** Internal lookup key — also the i18n key. Callers reference panels by this. */
   label: string;
+  /** Optional explicit i18n key, defaults to a derived one from `label`. */
+  i18nKey: StringKey;
   value: string;
   valueColor: string;
 }
@@ -43,11 +48,11 @@ export class Hud {
 
   constructor(scene: Phaser.Scene, layout: HudLayout) {
     const allSpecs: PanelSpec[] = [
-      { label: 'CREDIT',    value: '1000', valueColor: '#4be84b' },
-      { label: 'BET',       value: '1',    valueColor: '#4be84b' },
-      { label: 'LINES',     value: '1',    valueColor: '#4be84b' },
-      { label: 'TOTAL BET', value: '1',    valueColor: '#ffae3a' },
-      { label: 'WIN',       value: '0',    valueColor: '#ffd700' },
+      { label: 'CREDIT',    i18nKey: 'credit',    value: '1000', valueColor: '#4be84b' },
+      { label: 'BET',       i18nKey: 'bet',       value: '1',    valueColor: '#4be84b' },
+      { label: 'LINES',     i18nKey: 'lines',     value: '1',    valueColor: '#4be84b' },
+      { label: 'TOTAL BET', i18nKey: 'total-bet', value: '1',    valueColor: '#ffae3a' },
+      { label: 'WIN',       i18nKey: 'win',       value: '0',    valueColor: '#ffd700' },
     ];
     this.specs = layout.panels
       ? allSpecs.filter((s) => layout.panels!.includes(s.label))
@@ -232,7 +237,7 @@ export class Hud {
     // Label tab — sits ABOVE the bezel, overlapping the top edge like a
     // nameplate. Same idiom as the BET/LINES steppers for visual cohesion.
     const labelText = scene.add
-      .text(0, -h / 2 - 5, spec.label, {
+      .text(0, -h / 2 - 5, i18n.t(spec.i18nKey), {
         fontFamily: '"Arial Black", Arial, sans-serif',
         fontSize: `${labelPx}px`,
         fontStyle: 'bold',
@@ -306,7 +311,7 @@ export class Hud {
 
     // Label tab — overlaps the panel's top border (matches Stepper idiom).
     const labelText = scene.add
-      .text(0, -this.panelH / 2 - 5, spec.label, {
+      .text(0, -this.panelH / 2 - 5, i18n.t(spec.i18nKey), {
         fontFamily: '"Arial Black", Arial, sans-serif',
         fontSize: `${labelPx}px`,
         fontStyle: 'bold',

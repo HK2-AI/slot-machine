@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { makeButton } from './containerInput';
 import { audio } from '../systems/AudioManager';
+import { i18n } from '../systems/I18n';
 
 interface StepperOptions {
   label: string;
@@ -124,7 +125,7 @@ export class Stepper extends Phaser.GameObjects.Container {
     g.strokeRoundedRect(-pw / 2, -ph / 2, pw, ph, 7);
     c.add(g);
     const t = scene.add
-      .text(0, 0, 'MAX', {
+      .text(0, 0, i18n.t('max'), {
         fontFamily: '"Arial Black", Arial, sans-serif',
         fontSize: '9px',
         fontStyle: 'bold',
