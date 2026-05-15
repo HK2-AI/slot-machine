@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { audio } from '../systems/AudioManager';
 import { settings, sessionStats } from '../systems/Settings';
 import { i18n, type Locale } from '../systems/I18n';
+import { AchievementsModal } from './AchievementsModal';
 import { enableContainerInput, makeButton } from './containerInput';
 
 const DEPTH = 400;
@@ -190,6 +191,34 @@ export class SettingsModal {
 
     // ── Session stats section (also hosts TOP UP shortcut) ──
     this.addStatsSection(container, mx, my, MODAL_W, rowY + 14, compact);
+
+    // Trophy (achievements) button — to the left of the close X.
+    const trophyR = 16;
+    const trophyC = makeButton(this.scene, mx + MODAL_W - 62, my + 26, {
+      shape: 'circle',
+      radius: trophyR,
+      hoverScale: 1.12,
+      pressScale: 0.9,
+      onClick: () => {
+        audio.play('click');
+        const ach = new AchievementsModal(this.scene);
+        ach.open();
+      },
+    });
+    const trophyG = this.scene.add.graphics();
+    trophyG.fillStyle(0x1a1a2e, 1);
+    trophyG.fillCircle(0, 0, trophyR);
+    trophyG.lineStyle(2, 0xffd700, 1);
+    trophyG.strokeCircle(0, 0, trophyR);
+    trophyC.add(trophyG);
+    const trophyT = this.scene.add
+      .text(0, 0, '🏆', {
+        fontFamily: 'Arial, sans-serif',
+        fontSize: '18px',
+      })
+      .setOrigin(0.5);
+    trophyC.add(trophyT);
+    container.add(trophyC);
 
     // Close (X) button.
     const closeR = 16;

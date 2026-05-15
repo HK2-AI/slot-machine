@@ -84,6 +84,38 @@ export const en = {
   'gamble-take': 'tap outside to take winnings',
   'gamble-win': '+{n}  WIN!',
   'gamble-bust': 'BUST',
+
+  // Achievements
+  'achievements': 'ACHIEVEMENTS',
+  'achievement-unlocked': 'ACHIEVEMENT UNLOCKED!',
+  'ach-locked': 'LOCKED',
+  'ach-progress': '{n} / {total}',
+  'ach-completed': '{n} / {total} unlocked',
+
+  'ach-first-spin': 'First Spin',
+  'ach-first-spin-desc': 'Take your first spin',
+  'ach-veteran': 'Veteran',
+  'ach-veteran-desc': 'Spin 100 times',
+  'ach-spin-master': 'Spin Master',
+  'ach-spin-master-desc': 'Spin 1000 times',
+  'ach-big-winner': 'Big Winner',
+  'ach-big-winner-desc': 'Win 500 in a single spin',
+  'ach-mega-winner': 'Mega Winner',
+  'ach-mega-winner-desc': 'Hit a MEGA WIN',
+  'ach-lucky-streak': 'Lucky Streak',
+  'ach-lucky-streak-desc': 'Win 5 spins in a row',
+  'ach-hot-streak': 'Hot Streak',
+  'ach-hot-streak-desc': 'Win 8 spins in a row',
+  'ach-bonus-hunter': 'Bonus Hunter',
+  'ach-bonus-hunter-desc': 'Trigger free spins',
+  'ach-bonus-buyer': 'Bonus Buyer',
+  'ach-bonus-buyer-desc': 'Purchase a bonus round',
+  'ach-gambler': 'Gambler',
+  'ach-gambler-desc': 'Use the gamble feature',
+  'ach-risk-taker': 'Risk Taker',
+  'ach-risk-taker-desc': 'Win 3 gambles in a row',
+  'ach-big-spender': 'Big Spender',
+  'ach-big-spender-desc': 'Wager 10000 lifetime',
 };
 
 export type StringKey = keyof typeof en;

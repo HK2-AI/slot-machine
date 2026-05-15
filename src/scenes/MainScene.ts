@@ -21,12 +21,14 @@ import { audio } from '../systems/AudioManager';
 import { settings, sessionStats } from '../systems/Settings';
 import { appEvents, haptics, shareWin } from '../systems/NativeShell';
 import { i18n } from '../systems/I18n';
+import { achievements } from '../systems/Achievements';
 import { SettingsModal } from '../ui/SettingsModal';
 import { SpinHistory, type SpinTier } from '../ui/SpinHistory';
 import { BuyBonusModal } from '../ui/BuyBonusModal';
 import { RefillModal } from '../ui/RefillModal';
 import { GambleModal } from '../ui/GambleModal';
 import { StreakChip } from '../ui/StreakChip';
+import { AchievementToastQueue } from '../ui/AchievementToast';
 
 const NUM_REELS = 5;
 const VISIBLE_ROWS = 3;
@@ -105,6 +107,8 @@ export class MainScene extends Phaser.Scene {
 
   private resizeTimer?: Phaser.Time.TimerEvent;
   private offAppActive?: () => void;
+  private achievementToasts?: AchievementToastQueue;
+  private offAchievementUnlock?: () => void;
 
   constructor() {
     super({ key: 'MainScene' });
@@ -124,11 +128,21 @@ export class MainScene extends Phaser.Scene {
     this.offAppActive = appEvents.onActiveChange((active) => {
       if (!active && this.spinning) this.quickStopAllReels();
     });
+
+    this.achievementToasts = new AchievementToastQueue(this);
+    this.offAchievementUnlock = achievements.onUnlock((def) => {
+      this.achievementToasts?.show(def);
+      audio.play('win-medium');
+      haptics.success();
+    });
+
     this.events.once('shutdown', () => {
       this.scale.off('resize', this.onResize, this);
       this.resizeTimer?.remove();
       this.freeSpinTimer?.remove();
       this.offAppActive?.();
+      this.offAchievementUnlock?.();
+      this.achievementToasts?.destroy();
     });
   }
 
@@ -621,6 +635,17 @@ export class MainScene extends Phaser.Scene {
       }
     }
 
+    // Lifetime achievement tracking. Always record; the system itself
+    // decides what counts towards each achievement (e.g. wagered excludes
+    // free spins).
+    achievements.recordSpin({
+      bet: totalBet,
+      win: winSum,
+      isFree: isFreeSpin,
+      streak: this.streakCount,
+    });
+    if (tier === 'mega') achievements.recordMegaWin();
+
     // Mystery / streak are one-shot per spin — clear before next.
     this.mysteryMultiplier = 1;
     this.streakMultiplierAdd = 0;
@@ -674,6 +699,7 @@ export class MainScene extends Phaser.Scene {
   private applyGambleResult(winSum: number, final: number): void {
     const delta = final - winSum;
     if (delta === 0) return;
+    achievements.recordGamble(final > 0);
     if (delta > 0) Balance.add(delta);
     else Balance.deduct(Math.abs(delta));
     this.balance = Balance.getBalance();
@@ -726,6 +752,7 @@ export class MainScene extends Phaser.Scene {
     if (!wasFreeSpin) {
       this.freeSpinsWinSoFar = 0;
       sessionStats.recordFreeSpinsTrigger();
+      achievements.recordFreeSpinsTrigger();
     }
     this.autoSpin.stop();
     audio.play('win-big');
@@ -751,6 +778,7 @@ export class MainScene extends Phaser.Scene {
     this.freeSpinsTotal = awarded;
     this.freeSpinsWinSoFar = 0;
     sessionStats.recordFreeSpinsTrigger();
+    achievements.recordBonusBuy();
     this.autoSpin.stop();
     this.showFreeSpinBadge();
     this.updateFreeSpinBadge();
