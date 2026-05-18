@@ -76,7 +76,7 @@ export class SettingsModal {
     const W = this.scene.scale.width;
     const H = this.scene.scale.height;
     const MODAL_W = Math.min(380, W - 24);
-    const MODAL_H = Math.min(460, H - 24);
+    const MODAL_H = Math.min(480, H - 24);
 
     const container = this.scene.add.container(0, 0);
     container.setDepth(DEPTH);
@@ -170,8 +170,9 @@ export class SettingsModal {
       i18n.t('quick-spin'),
       () => settings.isQuickSpin(),
       (v) => settings.setQuickSpin(v),
+      i18n.t('quick-spin-desc'),
     );
-    rowY += ROW_GAP;
+    rowY += ROW_GAP + 6;
 
     // ── Gamble toggle ──
     this.addToggleRow(
@@ -182,8 +183,9 @@ export class SettingsModal {
       i18n.t('gamble'),
       () => settings.isGambleEnabled(),
       (v) => settings.setGambleEnabled(v),
+      i18n.t('gamble-desc'),
     );
-    rowY += ROW_GAP;
+    rowY += ROW_GAP + 6;
 
     // ── Language selector ──
     this.addLanguageRow(container, rowX, rowY, rowW);
@@ -543,7 +545,11 @@ export class SettingsModal {
     return readVol('bgmVol', 0.35);
   }
 
-  /** Render: [LABEL] ────────── [ON/OFF pill] across the row. */
+  /**
+   * Render: [LABEL] ────────── [ON/OFF pill] across the row. When `desc` is
+   * provided, a small caption is drawn under the label — used for toggles
+   * whose meaning isn't obvious from the title alone (e.g. GAMBLE).
+   */
   private addToggleRow(
     parent: Phaser.GameObjects.Container,
     x: number,
@@ -552,9 +558,13 @@ export class SettingsModal {
     label: string,
     get: () => boolean,
     set: (v: boolean) => void,
+    desc?: string,
   ): void {
+    // When a description is present, shift the label up so both lines visually
+    // sit on the row centerline.
+    const labelY = desc ? y - 7 : y;
     const labelT = this.scene.add
-      .text(x, y, label, {
+      .text(x, labelY, label, {
         fontFamily: '"Arial Black", Arial, sans-serif',
         fontSize: '14px',
         fontStyle: 'bold',
@@ -562,6 +572,17 @@ export class SettingsModal {
       })
       .setOrigin(0, 0.5);
     parent.add(labelT);
+
+    if (desc) {
+      const descT = this.scene.add
+        .text(x, y + 8, desc, {
+          fontFamily: '"Arial", sans-serif',
+          fontSize: '10px',
+          color: '#88889e',
+        })
+        .setOrigin(0, 0.5);
+      parent.add(descT);
+    }
 
     const pillW = 64;
     const pillH = 28;
