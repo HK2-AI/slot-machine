@@ -12,3 +12,9 @@ CLAUDE.md
 
 # TS incremental
 *.tsbuildinfo
+
+# Screenshot pipeline — raw captures + framed output. Final framed assets
+# live in android/fastlane/metadata + ios/fastlane/screenshots and are
+# committed; the artefacts below are regenerable from `pnpm screenshots`.
+/screenshots/
+/output/

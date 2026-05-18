@@ -1,0 +1,170 @@
+app:
+  name: "Lucky Vegas Slots"
+
+defaults:
+  background:
+    type: gradient
+    direction: "to bottom right"
+    colors:
+      - "#1a0628"
+      - "#3d0f4d"
+      - "#7a1a1f"
+  font:
+    headline:
+      family: "Inter"
+      weight: 900
+      size: 120
+      color: "#ffd700"
+      accentColor: "#ff3a5a"
+    subtitle:
+      family: "Inter"
+      weight: 700
+      size: 56
+      color: "#fff4b3"
+  device:
+    frame: "iphone-15-pro"
+  overlay:
+    coverage: 0.22
+    align: "center"
+    padding:
+      bottom: 80
+      side: 100
+    gradient:
+      - { color: "rgba(10,4,24,0.92)", stop: 0 }
+      - { color: "rgba(10,4,24,0.7)",  stop: 0.55 }
+      - { color: "rgba(10,4,24,0)",    stop: 1 }
+    textShadow: "0 4px 24px rgba(0,0,0,0.85)"
+
+fonts:
+  - family: "Inter"
+    weights:
+      - value: 400
+        path: "./fonts/Inter-400.ttf"
+      - value: 700
+        path: "./fonts/Inter-700.ttf"
+      - value: 900
+        path: "./fonts/Inter-900.ttf"
+  - family: "Noto Sans TC"
+    weights:
+      - value: 400
+        path: "./fonts/NotoSansTC-400.ttf"
+      - value: 700
+        path: "./fonts/NotoSansTC-700.ttf"
+      - value: 900
+        path: "./fonts/NotoSansTC-900.ttf"
+
+sizes:
+  - app-store-6.7-landscape
+  - google-play-phone-landscape
+  - app-store-ipad-12.9-landscape
+
+locales:
+  - en
+  - zh-HK
+
+i18n:
+  en:
+    screenshots:
+      default:
+        headline: "SPIN TO <accent>WIN BIG</accent>"
+        subtitle: "Real Vegas thrill in your pocket"
+      mega-win:
+        headline: "MASSIVE <accent>PAYOUTS</accent>"
+        subtitle: "Mega wins that light up the cabinet"
+      free-spins:
+        headline: "<accent>FREE SPINS</accent> BONUS"
+        subtitle: "Trigger 10 free spins at 2× multiplier"
+      gamble:
+        headline: "DOUBLE OR <accent>NOTHING</accent>"
+        subtitle: "Risk it after every win for 2× payout"
+      daily-reward:
+        headline: "DAILY <accent>REWARDS</accent>"
+        subtitle: "Log in 7 days, claim up to 3,000 credits"
+  zh-HK:
+    screenshots:
+      default:
+        headline: "極速 <accent>狂中大獎</accent>"
+        subtitle: "拉斯維加斯刺激感隨身上手"
+      mega-win:
+        headline: "<accent>超級大獎</accent> 連環爆"
+        subtitle: "全場狂響 credit 直線飆升"
+      free-spins:
+        headline: "<accent>免費旋轉</accent> 加碼"
+        subtitle: "10 次免費旋轉 2× 倍數翻倍中獎"
+      gamble:
+        headline: "翻倍 <accent>定 歸零</accent>"
+        subtitle: "中獎後選 RED / BLACK 再博一鋪"
+      daily-reward:
+        headline: "每日 <accent>登入獎勵</accent>"
+        subtitle: "連續登入 7 天 最高領取 3,000 籌碼"
+
+screenshots:
+  - id: default
+    template: "landscape-overlay"
+    screenshot:
+      en: "./screenshots/iphone/en/01_default.png"
+      zh-HK: "./screenshots/iphone/zh-HK/01_default.png"
+    android:
+      screenshot:
+        en: "./screenshots/android/en/01_default.png"
+        zh-HK: "./screenshots/android/zh-HK/01_default.png"
+    tablet:
+      screenshot:
+        en: "./screenshots/ipad/en/01_default.png"
+        zh-HK: "./screenshots/ipad/zh-HK/01_default.png"
+
+  - id: mega-win
+    template: "landscape-overlay"
+    screenshot:
+      en: "./screenshots/iphone/en/02_mega-win.png"
+      zh-HK: "./screenshots/iphone/zh-HK/02_mega-win.png"
+    android:
+      screenshot:
+        en: "./screenshots/android/en/02_mega-win.png"
+        zh-HK: "./screenshots/android/zh-HK/02_mega-win.png"
+    tablet:
+      screenshot:
+        en: "./screenshots/ipad/en/02_mega-win.png"
+        zh-HK: "./screenshots/ipad/zh-HK/02_mega-win.png"
+
+  - id: free-spins
+    template: "landscape-overlay"
+    screenshot:
+      en: "./screenshots/iphone/en/03_free-spins.png"
+      zh-HK: "./screenshots/iphone/zh-HK/03_free-spins.png"
+    android:
+      screenshot:
+        en: "./screenshots/android/en/03_free-spins.png"
+        zh-HK: "./screenshots/android/zh-HK/03_free-spins.png"
+    tablet:
+      screenshot:
+        en: "./screenshots/ipad/en/03_free-spins.png"
+        zh-HK: "./screenshots/ipad/zh-HK/03_free-spins.png"
+
+  - id: gamble
+    template: "landscape-overlay"
+    screenshot:
+      en: "./screenshots/iphone/en/04_gamble.png"
+      zh-HK: "./screenshots/iphone/zh-HK/04_gamble.png"
+    android:
+      screenshot:
+        en: "./screenshots/android/en/04_gamble.png"
+        zh-HK: "./screenshots/android/zh-HK/04_gamble.png"
+    tablet:
+      screenshot:
+        en: "./screenshots/ipad/en/04_gamble.png"
+        zh-HK: "./screenshots/ipad/zh-HK/04_gamble.png"
+
+  - id: daily-reward
+    template: "landscape-overlay"
+    screenshot:
+      en: "./screenshots/iphone/en/05_daily-reward.png"
+      zh-HK: "./screenshots/iphone/zh-HK/05_daily-reward.png"
+    android:
+      screenshot:
+        en: "./screenshots/android/en/05_daily-reward.png"
+        zh-HK: "./screenshots/android/zh-HK/05_daily-reward.png"
+    tablet:
+      screenshot:
+        en: "./screenshots/ipad/en/05_daily-reward.png"
+        zh-HK: "./screenshots/ipad/zh-HK/05_daily-reward.png"

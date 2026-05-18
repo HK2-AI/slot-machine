@@ -30,6 +30,7 @@ import { GambleModal } from '../ui/GambleModal';
 import { StreakChip } from '../ui/StreakChip';
 import { AchievementToastQueue } from '../ui/AchievementToast';
 import { DailyRewardModal } from '../ui/DailyRewardModal';
+import { announceSceneReady, getScreenshotParams, type Preset } from '../systems/ScreenshotMode';
 
 const NUM_REELS = 5;
 const VISIBLE_ROWS = 3;
@@ -137,10 +138,18 @@ export class MainScene extends Phaser.Scene {
       haptics.success();
     });
 
+    // Screenshot mode: skip the daily-reward auto-popup AND fire the
+    // preset application + ready event. The hook itself no-ops when the
+    // URL doesn't contain `?screenshot=1`.
+    const screenshot = getScreenshotParams();
+    if (screenshot.enabled) {
+      announceSceneReady(this);
+    }
+
     // Daily login reward — pop after a short delay so the cabinet finishes
     // its entrance before the modal lands. Skip on scene restart (e.g.
     // language change) so the player isn't asked twice in one session.
-    if (!(window as any).__DAILY_REWARD_SHOWN__) {
+    if (!screenshot.enabled && !(window as any).__DAILY_REWARD_SHOWN__) {
       (window as any).__DAILY_REWARD_SHOWN__ = true;
       this.time.delayedCall(600, () => {
         const modal = new DailyRewardModal(this, {
@@ -1177,5 +1186,135 @@ export class MainScene extends Phaser.Scene {
         onComplete: () => ring.destroy(),
       });
     }
+  }
+
+  // ---------- screenshot presets ----------
+
+  /**
+   * Inject deterministic state for App Store screenshots. Called by the
+   * ScreenshotMode hook when `?screenshot=1&preset=...` is in the URL.
+   * Each preset settles to a frozen visual within ~700ms.
+   */
+  public async runScreenshotPreset(name: Preset): Promise<void> {
+    const wait = (ms: number) => new Promise<void>((r) => this.time.delayedCall(ms, r));
+    // Lift the highest-depth open modal so the marketing overlay (~bottom 22%
+    // of the screen) doesn't clip key CTAs like CLAIM / RED-BLACK buttons.
+    const shiftModalUp = (scene: Phaser.Scene): void => {
+      const dy = -scene.scale.height * 0.08;
+      let top: Phaser.GameObjects.Container | undefined;
+      for (const child of scene.children.list) {
+        if (child instanceof Phaser.GameObjects.Container && child.depth >= 200) {
+          if (!top || child.depth > top.depth) top = child;
+        }
+      }
+      if (top) top.y += dy;
+    };
+
+    switch (name) {
+      case 'default': {
+        this.balance = 50000;
+        this.lastWin = 0;
+        this.hud.setValue('CREDIT', this.balance);
+        this.hud.setValue('WIN', 0);
+        await wait(500);
+        return;
+      }
+
+      case 'mega-win': {
+        const win = 12500;
+        this.balance = 75000;
+        this.lastWin = win;
+        this.hud.setValue('CREDIT', this.balance);
+        this.hud.setValue('WIN', win);
+        this.drawStaticMegaWin(win);
+        await wait(500);
+        return;
+      }
+
+      case 'free-spins': {
+        this.balance = 60000;
+        this.freeSpinsRemaining = 4;
+        this.freeSpinsTotal = 10;
+        this.freeSpinsWinSoFar = 2400;
+        this.lastWin = 800;
+        this.hud.setValue('CREDIT', this.balance);
+        this.hud.setValue('WIN', this.lastWin);
+        this.showFreeSpinBadge();
+        this.updateFreeSpinBadge();
+        if (this.freeSpinBadge) {
+          this.tweens.killTweensOf(this.freeSpinBadge);
+          this.freeSpinBadge.setAlpha(1);
+          this.freeSpinBadge.setScale(1);
+        }
+        await wait(500);
+        return;
+      }
+
+      case 'gamble': {
+        const win = 1600;
+        this.balance = 48000;
+        this.lastWin = win;
+        this.hud.setValue('CREDIT', this.balance);
+        this.hud.setValue('WIN', win);
+        this.gamble?.open(win, { onResolve: () => { /* no-op for screenshot */ } });
+        shiftModalUp(this);
+        await wait(500);
+        return;
+      }
+
+      case 'daily-reward': {
+        this.balance = 50000;
+        this.hud.setValue('CREDIT', this.balance);
+        this.hud.setValue('WIN', 0);
+        const modal = new DailyRewardModal(this, {
+          onClaimed: () => { /* no-op */ },
+        });
+        modal.openIfAvailable();
+        shiftModalUp(this);
+        await wait(600);
+        return;
+      }
+    }
+  }
+
+  /** Static "MEGA WIN" overlay — no tweens, no fade. Frozen at peak. */
+  private drawStaticMegaWin(amount: number): void {
+    const cx = this.blockX + this.blockW / 2;
+    const cy = this.blockY + this.blockH / 2;
+    const wrap = this.add.container(cx, cy);
+    wrap.setDepth(260);
+
+    const bgW = Math.min(560, this.blockW - 20);
+    const bgH = 160;
+    const bg = this.add.graphics();
+    bg.fillStyle(0x140014, 0.92);
+    bg.fillRoundedRect(-bgW / 2, -bgH / 2, bgW, bgH, 16);
+    bg.lineStyle(3, 0xffd700, 1);
+    bg.strokeRoundedRect(-bgW / 2, -bgH / 2, bgW, bgH, 16);
+    wrap.add(bg);
+
+    const title = this.add
+      .text(0, -28, i18n.t('mega-win'), {
+        fontFamily: '"Impact", "Arial Black", sans-serif',
+        fontSize: '64px',
+        fontStyle: 'bold',
+        color: '#ffd700',
+        stroke: '#1a0a00',
+        strokeThickness: 8,
+      })
+      .setOrigin(0.5);
+    title.setShadow(0, 6, '#000000', 12, false, true);
+    wrap.add(title);
+
+    const amt = this.add
+      .text(0, 36, `+${amount}`, {
+        fontFamily: '"Courier New", monospace',
+        fontSize: '40px',
+        fontStyle: 'bold',
+        color: '#fff4b3',
+      })
+      .setOrigin(0.5);
+    amt.setShadow(0, 4, '#000000', 8, false, true);
+    wrap.add(amt);
   }
 }

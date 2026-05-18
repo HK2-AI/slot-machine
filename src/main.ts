@@ -5,6 +5,7 @@ import { initNativeShell } from './systems/NativeShell';
 import { i18n } from './systems/I18n';
 import { loadAchievements } from './systems/Achievements';
 import { loadDailyReward } from './systems/DailyReward';
+import { setupScreenshotBoot } from './systems/ScreenshotMode';
 
 // Text resolution override: rasterize text textures at dpr× their game-units size so
 // the text textures themselves are crisp. Without this, fonts get bilinear-stretched
@@ -30,6 +31,7 @@ Phaser.GameObjects.GameObjectFactory.register(
 );
 
 async function boot(): Promise<void> {
+  setupScreenshotBoot();
   await Promise.all([loadBalance(), i18n.init(), loadAchievements(), loadDailyReward()]);
   initNativeShell();
   const game = new Phaser.Game(gameConfig);
