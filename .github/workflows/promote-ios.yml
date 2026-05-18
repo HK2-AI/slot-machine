@@ -1,0 +1,55 @@
+name: Promote iOS
+
+on:
+  workflow_dispatch:
+
+env:
+  BUNDLE_ID: com.etslot.app
+  APP_NAME: Lucky Vegas Slots
+
+jobs:
+  promote:
+    runs-on: macos-26
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ios
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+          working-directory: ios
+
+      - name: Setup ASC API Key
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "${{ secrets.ET_ASC_API_KEY_BASE64 }}" | base64 --decode \
+            > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.ET_ASC_KEY_ID }}.p8
+
+      - name: Submit for review
+        env:
+          APP_IDENTIFIER: ${{ env.BUNDLE_ID }}
+          APP_SUPPORT_URL: https://eggtart.io/contact/
+          APP_STORE_CONNECT_API_KEY_KEY_ID: ${{ secrets.ET_ASC_KEY_ID }}
+          APP_STORE_CONNECT_API_KEY_ISSUER_ID: ${{ secrets.ET_ASC_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_KEY_FILEPATH: ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.ET_ASC_KEY_ID }}.p8
+        run: bundle exec fastlane submit
+
+      - name: Notify Telegram
+        if: always()
+        env:
+          BOT: ${{ secrets.CI_REPORT_TELEGRAM_BOT_TOKEN }}
+          CHAT: ${{ secrets.CI_REPORT_TELEGRAM_CHAT_ID }}
+          TOPIC: ${{ secrets.CI_REPORT_TELEGRAM_TOPIC_ID }}
+        run: |
+          STATUS="${{ job.status == 'success' && '✅ Success' || '❌ Failed' }}"
+          MSG=$'🚀 Promote '"${{ env.APP_NAME }}"$' iOS\nStatus: '"$STATUS"$'\nBundle: '"${{ env.BUNDLE_ID }}"$'\nTestFlight → App Store Review\nRun: '"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -s -X POST "https://api.telegram.org/bot$BOT/sendMessage" \
+            -d chat_id="$CHAT" \
+            ${TOPIC:+-d message_thread_id="$TOPIC"} \
+            -d text="$MSG"

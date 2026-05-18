@@ -1,0 +1,62 @@
+name: Update Android Store Listing
+
+on:
+  workflow_dispatch:
+    inputs:
+      what:
+        description: 'Upload target'
+        type: choice
+        default: listing (metadata + images)
+        options:
+          - listing (metadata + images)
+          - metadata (text only)
+          - images (screenshots + graphics)
+
+env:
+  PACKAGE_NAME: com.etslot.app
+  APP_NAME: Lucky Vegas Slots
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: android
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+          working-directory: android
+
+      - name: Write service account
+        run: echo '${{ secrets.ET_GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}' > /tmp/play.json
+
+      - name: Run Fastlane
+        env:
+          SUPPLY_JSON_KEY: /tmp/play.json
+        run: |
+          case "${{ inputs.what }}" in
+            "listing (metadata + images)")     bundle exec fastlane upload_listing ;;
+            "metadata (text only)")            bundle exec fastlane upload_metadata ;;
+            "images (screenshots + graphics)") bundle exec fastlane upload_images ;;
+          esac
+
+      - name: Notify Telegram
+        if: always()
+        env:
+          BOT: ${{ secrets.CI_REPORT_TELEGRAM_BOT_TOKEN }}
+          CHAT: ${{ secrets.CI_REPORT_TELEGRAM_CHAT_ID }}
+          TOPIC: ${{ secrets.CI_REPORT_TELEGRAM_TOPIC_ID }}
+        run: |
+          STATUS="${{ job.status == 'success' && '✅ Success' || '❌ Failed' }}"
+          MSG=$'📝 Update Android Listing — '"${{ env.APP_NAME }}"$'\nStatus: '"$STATUS"$'\nTarget: '"${{ inputs.what }}"$'\nRun: '"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -s -X POST "https://api.telegram.org/bot$BOT/sendMessage" \
+            -d chat_id="$CHAT" \
+            ${TOPIC:+-d message_thread_id="$TOPIC"} \
+            -d text="$MSG"

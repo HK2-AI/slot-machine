@@ -1,0 +1,38 @@
+name: Promote Android
+
+on:
+  workflow_dispatch:
+
+env:
+  PACKAGE_NAME: com.etslot.app
+  APP_NAME: Lucky Vegas Slots
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Promote internal → production
+        uses: kevin-david/promote-play-release@v1.2.0
+        with:
+          service-account-json: ${{ secrets.ET_GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          package-name: ${{ env.PACKAGE_NAME }}
+          inapp-update-priority: 2
+          user-fraction: 1.0
+          from-track: internal
+          to-track: production
+
+      - name: Notify Telegram
+        if: always()
+        env:
+          BOT: ${{ secrets.CI_REPORT_TELEGRAM_BOT_TOKEN }}
+          CHAT: ${{ secrets.CI_REPORT_TELEGRAM_CHAT_ID }}
+          TOPIC: ${{ secrets.CI_REPORT_TELEGRAM_TOPIC_ID }}
+        run: |
+          STATUS="${{ job.status == 'success' && '✅ Success' || '❌ Failed' }}"
+          MSG=$'🚀 Promote '"${{ env.APP_NAME }}"$'\nStatus: '"$STATUS"$'\nPackage: '"${{ env.PACKAGE_NAME }}"$'\ninternal → production\nRun: '"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -s -X POST "https://api.telegram.org/bot$BOT/sendMessage" \
+            -d chat_id="$CHAT" \
+            ${TOPIC:+-d message_thread_id="$TOPIC"} \
+            -d text="$MSG"

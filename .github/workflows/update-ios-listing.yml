@@ -1,0 +1,68 @@
+name: Update iOS Store Listing
+
+on:
+  workflow_dispatch:
+    inputs:
+      what:
+        description: 'Upload target'
+        type: choice
+        default: listing (metadata + screenshots)
+        options:
+          - listing (metadata + screenshots)
+          - metadata (text only)
+          - screenshots (images only)
+
+env:
+  BUNDLE_ID: com.etslot.app
+  APP_NAME: Lucky Vegas Slots
+
+jobs:
+  upload:
+    runs-on: macos-26
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: ios
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+          working-directory: ios
+
+      - name: Setup ASC API Key
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "${{ secrets.ET_ASC_API_KEY_BASE64 }}" | base64 --decode \
+            > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.ET_ASC_KEY_ID }}.p8
+
+      - name: Run Fastlane
+        env:
+          APP_IDENTIFIER: ${{ env.BUNDLE_ID }}
+          APP_STORE_CONNECT_API_KEY_KEY_ID: ${{ secrets.ET_ASC_KEY_ID }}
+          APP_STORE_CONNECT_API_KEY_ISSUER_ID: ${{ secrets.ET_ASC_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_KEY_FILEPATH: ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.ET_ASC_KEY_ID }}.p8
+        run: |
+          case "${{ inputs.what }}" in
+            "listing (metadata + screenshots)") bundle exec fastlane upload_listing ;;
+            "metadata (text only)")             bundle exec fastlane upload_metadata ;;
+            "screenshots (images only)")        bundle exec fastlane upload_screenshots ;;
+          esac
+
+      - name: Notify Telegram
+        if: always()
+        env:
+          BOT: ${{ secrets.CI_REPORT_TELEGRAM_BOT_TOKEN }}
+          CHAT: ${{ secrets.CI_REPORT_TELEGRAM_CHAT_ID }}
+          TOPIC: ${{ secrets.CI_REPORT_TELEGRAM_TOPIC_ID }}
+        run: |
+          STATUS="${{ job.status == 'success' && '✅ Success' || '❌ Failed' }}"
+          MSG=$'📝 Update iOS Listing — '"${{ env.APP_NAME }}"$'\nStatus: '"$STATUS"$'\nTarget: '"${{ inputs.what }}"$'\nRun: '"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -s -X POST "https://api.telegram.org/bot$BOT/sendMessage" \
+            -d chat_id="$CHAT" \
+            ${TOPIC:+-d message_thread_id="$TOPIC"} \
+            -d text="$MSG"
