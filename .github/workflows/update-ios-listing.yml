@@ -6,7 +6,7 @@ on:
       what:
         description: 'Upload target'
         type: choice
-        default: listing (metadata + screenshots)
+        default: metadata (text only)
         options:
           - listing (metadata + screenshots)
           - metadata (text only)
@@ -19,7 +19,7 @@ env:
 jobs:
   upload:
     runs-on: macos-26
-    timeout-minutes: 20
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: ios
