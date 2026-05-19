@@ -1,1 +1,1 @@
-MZGenre.Card
+MZGenre.Casual
