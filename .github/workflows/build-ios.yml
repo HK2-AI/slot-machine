@@ -121,19 +121,11 @@ jobs:
         working-directory: ios
         env:
           APP_IDENTIFIER: ${{ env.BUNDLE_ID }}
-          APP_STORE_CONNECT_API_KEY_KEY_ID: ${{ secrets.ET_ASC_KEY_ID }}
-          APP_STORE_CONNECT_API_KEY_ISSUER_ID: ${{ secrets.ET_ASC_ISSUER_ID }}
-          APP_STORE_CONNECT_API_KEY_KEY_FILEPATH: /tmp/AuthKey.p8
+          KID: ${{ secrets.ET_ASC_KEY_ID }}
+          IID: ${{ secrets.ET_ASC_ISSUER_ID }}
         run: |
           echo "${{ secrets.ET_ASC_API_KEY_BASE64 }}" | base64 --decode > /tmp/AuthKey.p8
-          cat > /tmp/asc_api_key.json <<EOF
-          {
-            "key_id": "${{ secrets.ET_ASC_KEY_ID }}",
-            "issuer_id": "${{ secrets.ET_ASC_ISSUER_ID }}",
-            "key": "$(cat /tmp/AuthKey.p8 | sed ':a;N;$!ba;s/\n/\\n/g')",
-            "in_house": false
-          }
-          EOF
+          ruby -rjson -e 'puts({key_id: ENV["KID"], issuer_id: ENV["IID"], key: File.read("/tmp/AuthKey.p8"), in_house: false}.to_json)' > /tmp/asc_api_key.json
           bundle exec fastlane pilot upload \
             --api_key_path /tmp/asc_api_key.json \
             --app_identifier com.etslot.app \
