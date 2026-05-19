@@ -1,4 +1,4 @@
-package slot.eggtart.app;
+package com.etslot.app;
 
 import com.getcapacitor.BridgeActivity;
 

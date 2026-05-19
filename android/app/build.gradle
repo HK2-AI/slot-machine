@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "slot.eggtart.app"
+    namespace = "com.etslot.app"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "slot.eggtart.app"
+        applicationId "com.etslot.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
