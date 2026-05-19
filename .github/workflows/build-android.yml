@@ -148,10 +148,13 @@ jobs:
 
       - name: Upload APK to GCS
         id: upload_gcs
+        continue-on-error: true
         run: |
+          BUCKET="${{ env.FIREBASE_PROJECT_ID }}-builds"
+          gsutil ls -b "gs://$BUCKET" >/dev/null 2>&1 || gsutil mb -p "${{ env.FIREBASE_PROJECT_ID }}" -l us "gs://$BUCKET" || true
           KEY="${{ env.APP_NAME }}/${{ steps.version.outputs.name }}-${{ github.run_id }}.apk"
-          gsutil cp android/app/build/outputs/apk/release/app-release.apk "gs://${{ env.FIREBASE_PROJECT_ID }}-builds/$KEY"
-          URL=$(gsutil signurl -d 7d /tmp/sa.json "gs://${{ env.FIREBASE_PROJECT_ID }}-builds/$KEY" 2>/dev/null | tail -1 | awk '{print $NF}' || echo "")
+          gsutil cp android/app/build/outputs/apk/release/app-release.apk "gs://$BUCKET/$KEY" || exit 0
+          URL=$(gsutil signurl -d 7d /tmp/sa.json "gs://$BUCKET/$KEY" 2>/dev/null | tail -1 | awk '{print $NF}' || echo "")
           echo "url=$URL" >> $GITHUB_OUTPUT
 
       - name: Notify Telegram
