@@ -126,7 +126,17 @@ jobs:
           APP_STORE_CONNECT_API_KEY_KEY_FILEPATH: /tmp/AuthKey.p8
         run: |
           echo "${{ secrets.ET_ASC_API_KEY_BASE64 }}" | base64 --decode > /tmp/AuthKey.p8
+          cat > /tmp/asc_api_key.json <<EOF
+          {
+            "key_id": "${{ secrets.ET_ASC_KEY_ID }}",
+            "issuer_id": "${{ secrets.ET_ASC_ISSUER_ID }}",
+            "key": "$(cat /tmp/AuthKey.p8 | sed ':a;N;$!ba;s/\n/\\n/g')",
+            "in_house": false
+          }
+          EOF
           bundle exec fastlane pilot upload \
+            --api_key_path /tmp/asc_api_key.json \
+            --app_identifier com.etslot.app \
             --ipa App/build/ipa/App.ipa \
             --skip_waiting_for_build_processing true
 
