@@ -93,7 +93,7 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild \
-            -workspace App.xcworkspace \
+            -project App.xcodeproj \
             -scheme App \
             -configuration Release \
             -destination 'generic/platform=iOS' \

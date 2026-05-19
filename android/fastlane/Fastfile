@@ -4,42 +4,36 @@ platform :android do
   desc "Upload metadata + screenshots/graphics to Play Store"
   lane :upload_listing do
     supply(
-      track: "production",
+      track: "internal",
       skip_upload_apk: true,
       skip_upload_aab: true,
       skip_upload_changelogs: false,
       skip_upload_metadata: false,
       skip_upload_images: false,
-      skip_upload_screenshots: false,
-      changes_not_sent_for_review: true
-    )
+      skip_upload_screenshots: false    )
   end
 
   desc "Upload metadata text only"
   lane :upload_metadata do
     supply(
-      track: "production",
+      track: "internal",
       skip_upload_apk: true,
       skip_upload_aab: true,
       skip_upload_changelogs: false,
       skip_upload_metadata: false,
       skip_upload_images: true,
-      skip_upload_screenshots: true,
-      changes_not_sent_for_review: true
-    )
+      skip_upload_screenshots: true    )
   end
 
   desc "Upload screenshots + feature graphic only"
   lane :upload_images do
     supply(
-      track: "production",
+      track: "internal",
       skip_upload_apk: true,
       skip_upload_aab: true,
       skip_upload_changelogs: true,
       skip_upload_metadata: true,
       skip_upload_images: false,
-      skip_upload_screenshots: false,
-      changes_not_sent_for_review: true
-    )
+      skip_upload_screenshots: false    )
   end
 end

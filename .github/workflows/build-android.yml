@@ -145,7 +145,6 @@ jobs:
           releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
           track: ${{ inputs.track }}
           status: completed
-          changesNotSentForReview: true
 
       - name: Upload APK to GCS
         id: upload_gcs
