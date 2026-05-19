@@ -16,7 +16,7 @@ jobs:
       - name: Promote internal → production
         uses: kevin-david/promote-play-release@v1.2.0
         with:
-          service-account-json: ${{ secrets.ET_GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          service-account-json-raw: ${{ secrets.ET_GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
           package-name: ${{ env.PACKAGE_NAME }}
           inapp-update-priority: 2
           user-fraction: 1.0
